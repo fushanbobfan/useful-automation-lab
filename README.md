@@ -18,6 +18,16 @@ python -m useful_automation_lab.compare examples/snapshot-before.json examples/s
 
 The comparison output is deterministic JSON. Exit code `0` means the snapshots match, `1` means changes were found, and `2` means an inventory was invalid or unreadable. Paths must be normalized and relative, hashes must be lowercase SHA-256 values, and duplicate paths are rejected rather than silently overwritten.
 
+## Verify a directory
+
+Verify current files directly against a saved inventory without creating a second snapshot:
+
+```powershell
+python -m useful_automation_lab.verify . inventory.json --output verification.json
+```
+
+The verification command uses the same deterministic change report and `0`/`1`/`2` exit codes as snapshot comparison. If the manifest was written inside the verified directory but was not part of the original snapshot, it is excluded automatically instead of appearing as a false addition. The command only reads directory contents unless `--output` is provided.
+
 ## Test
 
 ```powershell

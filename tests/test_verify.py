@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import useful_automation_lab
 from useful_automation_lab.inventory import build_inventory
 from useful_automation_lab.verify import main, verify_directory
 
@@ -12,6 +13,9 @@ from useful_automation_lab.verify import main, verify_directory
 class DirectoryVerificationTests(unittest.TestCase):
     def write_manifest(self, path: Path, root: Path) -> None:
         path.write_text(json.dumps(build_inventory(root)), encoding="utf-8")
+
+    def test_verification_api_is_available_from_package(self):
+        self.assertIs(useful_automation_lab.verify_directory, verify_directory)
 
     def test_unchanged_directory_matches_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
