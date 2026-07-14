@@ -7,6 +7,7 @@ __all__ = [
     "build_inventory",
     "compare_inventories",
     "load_inventory",
+    "verify_directory",
 ]
 
 
@@ -23,4 +24,8 @@ def __getattr__(name: str) -> Any:
             "compare_inventories": compare_inventories,
             "load_inventory": load_inventory,
         }[name]
+    if name == "verify_directory":
+        from .verify import verify_directory
+
+        return verify_directory
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
