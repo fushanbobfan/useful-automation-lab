@@ -1,8 +1,11 @@
+import contextlib
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from useful_automation_lab.inventory import build_inventory
+from useful_automation_lab.inventory import build_inventory, main
 
 
 class InventoryTests(unittest.TestCase):
@@ -52,6 +55,33 @@ class InventoryTests(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as directory:
                     with self.assertRaisesRegex(ValueError, "patterns"):
                         build_inventory(Path(directory), exclude_patterns=[pattern])
+
+    def test_cli_applies_repeated_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "keep.txt").write_text("keep", encoding="utf-8")
+            (root / "debug.log").write_text("log", encoding="utf-8")
+            (root / "cache").mkdir()
+            (root / "cache" / "item.txt").write_text("cache", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(
+                    [str(root), "--exclude", "*.log", "--exclude", "cache"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(
+                [entry["path"] for entry in json.loads(stdout.getvalue())],
+                ["keep.txt"],
+            )
+
+    def test_cli_returns_two_for_an_invalid_pattern(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([directory, "--exclude", "../outside"])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":

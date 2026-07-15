@@ -6,6 +6,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import sys
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 
@@ -78,17 +79,32 @@ def build_inventory(
     return entries
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
-    rendered = json.dumps(build_inventory(args.root), indent=2)
-    if args.output:
-        args.output.write_text(rendered + "\n", encoding="utf-8")
-    else:
-        print(rendered)
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="exclude a relative POSIX path glob; repeat for multiple patterns",
+    )
+    args = parser.parse_args(argv)
+    try:
+        rendered = json.dumps(
+            build_inventory(args.root, exclude_patterns=args.exclude),
+            indent=2,
+        )
+        if args.output:
+            args.output.write_text(rendered + "\n", encoding="utf-8")
+        else:
+            print(rendered)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

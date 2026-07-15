@@ -66,6 +66,30 @@ class DirectoryVerificationTests(unittest.TestCase):
                 {"added": 1, "removed": 1, "modified": 1, "unchanged": 0},
             )
 
+    def test_verification_uses_the_same_exclusions_as_the_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "data"
+            root.mkdir()
+            (root / "stable.txt").write_text("stable", encoding="utf-8")
+            manifest = base / "manifest.json"
+            manifest.write_text(
+                json.dumps(build_inventory(root, exclude_patterns=["*.tmp"])),
+                encoding="utf-8",
+            )
+            (root / "generated.tmp").write_text("changing", encoding="utf-8")
+
+            report = verify_directory(
+                root,
+                manifest,
+                exclude_patterns=["*.tmp"],
+            )
+
+            self.assertEqual(
+                report["summary"],
+                {"added": 0, "removed": 0, "modified": 0, "unchanged": 1},
+            )
+
     def test_missing_root_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -116,6 +140,25 @@ class DirectoryVerificationTests(unittest.TestCase):
                 exit_code = main([str(base / "missing"), str(manifest)])
 
             self.assertEqual(exit_code, 2)
+
+    def test_cli_applies_exclusions_during_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "data"
+            root.mkdir()
+            (root / "file.txt").write_text("stable", encoding="utf-8")
+            manifest = base / "manifest.json"
+            self.write_manifest(manifest, root)
+            (root / "debug.log").write_text("ignored", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(
+                    [str(root), str(manifest), "--exclude", "*.log"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(stdout.getvalue())["summary"]["added"], 0)
 
 
 if __name__ == "__main__":

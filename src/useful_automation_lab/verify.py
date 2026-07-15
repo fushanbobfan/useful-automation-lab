@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +13,19 @@ from .compare import InvalidInventoryError, compare_inventories, load_inventory
 from .inventory import build_inventory
 
 
-def verify_directory(root: Path, manifest: Path) -> dict[str, Any]:
+def verify_directory(
+    root: Path,
+    manifest: Path,
+    *,
+    exclude_patterns: Sequence[str] = (),
+) -> dict[str, Any]:
     """Compare a current directory with a validated inventory manifest."""
 
     if not root.is_dir():
         raise ValueError(f"directory does not exist: {root}")
 
     expected = load_inventory(manifest)
-    current = build_inventory(root)
+    current = build_inventory(root, exclude_patterns=exclude_patterns)
     expected_paths = {entry["path"] for entry in expected}
 
     try:
@@ -37,10 +43,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("root", type=Path, help="directory to verify")
     parser.add_argument("manifest", type=Path, help="saved inventory JSON file")
     parser.add_argument("--output", type=Path, help="write the JSON report to a file")
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="exclude a relative POSIX path glob; repeat for multiple patterns",
+    )
     args = parser.parse_args(argv)
 
     try:
-        report = verify_directory(args.root, args.manifest)
+        report = verify_directory(
+            args.root,
+            args.manifest,
+            exclude_patterns=args.exclude,
+        )
         rendered = json.dumps(report, indent=2) + "\n"
         if args.output:
             args.output.write_text(rendered, encoding="utf-8")
