@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
-from pathlib import Path
+import sys
+from collections.abc import Sequence
+from pathlib import Path, PurePosixPath
 
 
 def _sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -16,16 +19,59 @@ def _sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-def build_inventory(root: Path, excluded_names: set[str] | None = None) -> list[dict[str, str | int]]:
+def _validated_patterns(patterns: Sequence[str]) -> tuple[str, ...]:
+    validated = []
+    for pattern in patterns:
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError("exclude patterns must be non-empty strings")
+        normalized = PurePosixPath(pattern)
+        if (
+            normalized.is_absolute()
+            or pattern != normalized.as_posix()
+            or ".." in normalized.parts
+            or "\\" in pattern
+            or pattern == "."
+        ):
+            raise ValueError(
+                "exclude patterns must use normalized relative POSIX paths"
+            )
+        validated.append(pattern)
+    return tuple(validated)
+
+
+def _matches_pattern(path: PurePosixPath, patterns: Sequence[str]) -> bool:
+    candidates = [path.as_posix()]
+    candidates.extend(
+        parent.as_posix() for parent in path.parents if parent != PurePosixPath(".")
+    )
+    return any(
+        fnmatch.fnmatchcase(candidate, pattern)
+        for candidate in candidates
+        for pattern in patterns
+    )
+
+
+def build_inventory(
+    root: Path,
+    excluded_names: set[str] | None = None,
+    *,
+    exclude_patterns: Sequence[str] = (),
+) -> list[dict[str, str | int]]:
     root = root.resolve()
     excluded = {".git", "__pycache__"} if excluded_names is None else excluded_names
+    patterns = _validated_patterns(exclude_patterns)
     entries = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or any(part in excluded for part in path.relative_to(root).parts):
+        relative = PurePosixPath(path.relative_to(root).as_posix())
+        if (
+            not path.is_file()
+            or any(part in excluded for part in relative.parts)
+            or _matches_pattern(relative, patterns)
+        ):
             continue
         entries.append(
             {
-                "path": path.relative_to(root).as_posix(),
+                "path": relative.as_posix(),
                 "size": path.stat().st_size,
                 "sha256": _sha256(path),
             }
@@ -33,18 +79,32 @@ def build_inventory(root: Path, excluded_names: set[str] | None = None) -> list[
     return entries
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
-    rendered = json.dumps(build_inventory(args.root), indent=2)
-    if args.output:
-        args.output.write_text(rendered + "\n", encoding="utf-8")
-    else:
-        print(rendered)
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="exclude a relative POSIX path glob; repeat for multiple patterns",
+    )
+    args = parser.parse_args(argv)
+    try:
+        rendered = json.dumps(
+            build_inventory(args.root, exclude_patterns=args.exclude),
+            indent=2,
+        )
+        if args.output:
+            args.output.write_text(rendered + "\n", encoding="utf-8")
+        else:
+            print(rendered)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
-
+    raise SystemExit(main())

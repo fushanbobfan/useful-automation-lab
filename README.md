@@ -28,6 +28,17 @@ python -m useful_automation_lab.verify . inventory.json --output verification.js
 
 The verification command uses the same deterministic change report and `0`/`1`/`2` exit codes as snapshot comparison. If the manifest was written inside the verified directory but was not part of the original snapshot, it is excluded automatically instead of appearing as a false addition. The command only reads directory contents unless `--output` is provided.
 
+## Exclude generated paths
+
+Both inventory creation and direct verification accept repeatable relative POSIX glob exclusions. Use the same exclusions for the baseline and every later verification:
+
+```powershell
+file-inventory export --exclude "*.tmp" --exclude "cache" --output manifest.json
+manifest-verify export manifest.json --exclude "*.tmp" --exclude "cache"
+```
+
+A pattern is matched against each file's relative path and its directory ancestors, so `cache` omits the whole directory while `*.tmp` omits matching files at any depth. Patterns are not stored in the manifest; keeping them explicit makes every verification command auditable. Absolute paths, parent traversal, backslashes, and non-normalized patterns are rejected with exit code `2`. The built-in `.git` and `__pycache__` directory exclusions remain active.
+
 ## Test
 
 ```powershell
