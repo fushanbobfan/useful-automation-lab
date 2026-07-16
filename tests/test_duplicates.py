@@ -1,7 +1,12 @@
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from useful_automation_lab.compare import InvalidInventoryError
-from useful_automation_lab.duplicates import find_duplicates
+from useful_automation_lab.duplicates import find_duplicates, main
 
 
 def entry(path: str, marker: str, size: int) -> dict[str, str | int]:
@@ -69,6 +74,50 @@ class DuplicateDetectionTests(unittest.TestCase):
                     find_duplicates([], min_size=minimum)
         with self.assertRaises(InvalidInventoryError):
             find_duplicates([{"path": "missing-fields"}])
+
+    def test_cli_prints_report_and_can_fail_when_duplicates_exist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            inventory.write_text(
+                json.dumps([entry("a.bin", "a", 10), entry("b.bin", "a", 10)]),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(inventory), "--fail-on-duplicates"])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(stdout.getvalue())["summary"]["reclaimable_bytes"],
+                10,
+            )
+
+    def test_cli_writes_a_filtered_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            output = Path(directory) / "duplicates.json"
+            inventory.write_text(
+                json.dumps([entry("a.bin", "a", 1), entry("b.bin", "a", 1)]),
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [str(inventory), "--min-size", "2", "--output", str(output)]
+            )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(output.read_text())["groups"], [])
+
+    def test_cli_returns_two_for_invalid_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            inventory.write_text("{", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(inventory)])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":

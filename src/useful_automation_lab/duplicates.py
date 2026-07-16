@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import sys
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
-from .compare import _validate_entries
+from .compare import InvalidInventoryError, _validate_entries, load_inventory
 
 
 def find_duplicates(inventory: Any, *, min_size: int = 1) -> dict[str, Any]:
@@ -54,3 +58,36 @@ def find_duplicates(inventory: Any, *, min_size: int = 1) -> dict[str, Any]:
         "min_size": min_size,
         "groups": groups,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("inventory", type=Path)
+    parser.add_argument("--min-size", type=int, default=1)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--fail-on-duplicates",
+        action="store_true",
+        help="return exit code 1 when duplicate groups are present",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        report = find_duplicates(
+            load_inventory(args.inventory),
+            min_size=args.min_size,
+        )
+        rendered = json.dumps(report, indent=2) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (InvalidInventoryError, OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(args.fail_on_duplicates and bool(report["groups"]))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
