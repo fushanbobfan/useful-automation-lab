@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import useful_automation_lab
 from useful_automation_lab.compare import InvalidInventoryError
 from useful_automation_lab.duplicates import find_duplicates, main
 
@@ -14,6 +15,9 @@ def entry(path: str, marker: str, size: int) -> dict[str, str | int]:
 
 
 class DuplicateDetectionTests(unittest.TestCase):
+    def test_duplicate_api_is_available_from_package(self):
+        self.assertIs(useful_automation_lab.find_duplicates, find_duplicates)
+
     def test_groups_duplicates_and_reports_reclaimable_bytes(self):
         report = find_duplicates(
             [

@@ -39,6 +39,18 @@ manifest-verify export manifest.json --exclude "*.tmp" --exclude "cache"
 
 A pattern is matched against each file's relative path and its directory ancestors, so `cache` omits the whole directory while `*.tmp` omits matching files at any depth. Patterns are not stored in the manifest; keeping them explicit makes every verification command auditable. Absolute paths, parent traversal, backslashes, and non-normalized patterns are rejected with exit code `2`. The built-in `.git` and `__pycache__` directory exclusions remain active.
 
+## Find duplicate content
+
+Inspect a validated inventory for files with matching SHA-256 digests and sizes:
+
+```powershell
+python -m useful_automation_lab.duplicates inventory.json --min-size 1024
+```
+
+The deterministic report groups duplicate paths, counts affected files, and estimates reclaimable bytes as all but one copy in each group. Larger opportunities appear first, and `--min-size` can suppress small files. The command is read-only; it never chooses or deletes a copy. Use `--output duplicates.json` to save the report or `--fail-on-duplicates` to return exit code `1` for policy checks. Invalid inventories and arguments return `2`.
+
+Duplicate results describe the content hashes recorded in the manifest. Run `manifest-verify` first when the files may have changed since the snapshot was created.
+
 ## Test
 
 ```powershell

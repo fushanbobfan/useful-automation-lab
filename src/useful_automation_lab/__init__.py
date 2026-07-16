@@ -6,6 +6,7 @@ __all__ = [
     "InvalidInventoryError",
     "build_inventory",
     "compare_inventories",
+    "find_duplicates",
     "load_inventory",
     "verify_directory",
 ]
@@ -28,4 +29,8 @@ def __getattr__(name: str) -> Any:
         from .verify import verify_directory
 
         return verify_directory
+    if name == "find_duplicates":
+        from .duplicates import find_duplicates
+
+        return find_duplicates
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
