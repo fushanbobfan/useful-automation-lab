@@ -1,7 +1,17 @@
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
+import useful_automation_lab
 from useful_automation_lab.compare import InvalidInventoryError
-from useful_automation_lab.policy import InvalidPolicyError, audit_inventory_policy
+from useful_automation_lab.policy import (
+    InvalidPolicyError,
+    audit_inventory_policy,
+    main,
+)
 
 
 def entry(path: str, size: int, marker: str = "a") -> dict[str, str | int]:
@@ -14,6 +24,12 @@ class ManifestPolicyTests(unittest.TestCase):
         entry("data/large.bin", 200, "b"),
         entry("secrets/token.txt", 10, "c"),
     ]
+
+    def test_policy_api_is_available_from_package(self):
+        self.assertIs(
+            useful_automation_lab.audit_inventory_policy, audit_inventory_policy
+        )
+        self.assertIs(useful_automation_lab.InvalidPolicyError, InvalidPolicyError)
 
     def test_passing_policy_reports_inventory_totals(self):
         report = audit_inventory_policy(
@@ -92,6 +108,61 @@ class ManifestPolicyTests(unittest.TestCase):
     def test_invalid_inventory_is_rejected_before_policy_audit(self):
         with self.assertRaises(InvalidInventoryError):
             audit_inventory_policy([{"path": "missing-fields"}], {"version": 1})
+
+    def test_cli_writes_a_passing_policy_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "inventory.json"
+            policy = root / "policy.json"
+            output = root / "report.json"
+            inventory.write_text(json.dumps(self.inventory), encoding="utf-8")
+            policy.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "max_files": 3,
+                        "required_paths": ["README.md"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            exit_code = main([str(inventory), str(policy), "--output", str(output)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
+
+    def test_cli_returns_one_and_prints_policy_violations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "inventory.json"
+            policy = root / "policy.json"
+            inventory.write_text(json.dumps(self.inventory), encoding="utf-8")
+            policy.write_text(
+                json.dumps({"version": 1, "max_files": 1}), encoding="utf-8"
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(inventory), str(policy)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(stdout.getvalue())["violations"][0]["rule"], "max_files"
+            )
+
+    def test_cli_returns_two_for_invalid_policy_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "inventory.json"
+            policy = root / "policy.json"
+            inventory.write_text(json.dumps(self.inventory), encoding="utf-8")
+            policy.write_text("{", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(inventory), str(policy)])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":

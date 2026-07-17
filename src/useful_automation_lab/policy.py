@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
+import argparse
+import json
+import sys
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .compare import _validate_entries
+from .compare import InvalidInventoryError, _validate_entries, load_inventory
 from .inventory import _matches_pattern, _validated_patterns
 
 
@@ -16,6 +19,18 @@ _GLOB_MARKERS = frozenset("*?[")
 
 class InvalidPolicyError(ValueError):
     """Raised when a manifest policy does not match the version 1 schema."""
+
+
+def load_policy(path: Path) -> dict[str, Any]:
+    """Load and validate a versioned policy JSON file."""
+
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise InvalidPolicyError(
+            f"{path}: invalid JSON at line {error.lineno}, column {error.colno}"
+        ) from error
+    return _normalized_policy(value)
 
 
 def _normalized_policy(value: Any) -> dict[str, Any]:
@@ -144,3 +159,36 @@ def audit_inventory_policy(inventory: Any, policy: Any) -> dict[str, Any]:
         "policy": normalized_policy,
         "violations": violations,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("inventory", type=Path)
+    parser.add_argument("policy", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        report = audit_inventory_policy(
+            load_inventory(args.inventory), load_policy(args.policy)
+        )
+        rendered = json.dumps(report, indent=2) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (
+        InvalidInventoryError,
+        InvalidPolicyError,
+        OSError,
+        UnicodeError,
+        ValueError,
+    ) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

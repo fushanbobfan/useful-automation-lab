@@ -4,10 +4,13 @@ from typing import Any
 
 __all__ = [
     "InvalidInventoryError",
+    "InvalidPolicyError",
+    "audit_inventory_policy",
     "build_inventory",
     "compare_inventories",
     "find_duplicates",
     "load_inventory",
+    "load_policy",
     "verify_directory",
 ]
 
@@ -33,4 +36,12 @@ def __getattr__(name: str) -> Any:
         from .duplicates import find_duplicates
 
         return find_duplicates
+    if name in {"InvalidPolicyError", "audit_inventory_policy", "load_policy"}:
+        from .policy import InvalidPolicyError, audit_inventory_policy, load_policy
+
+        return {
+            "InvalidPolicyError": InvalidPolicyError,
+            "audit_inventory_policy": audit_inventory_policy,
+            "load_policy": load_policy,
+        }[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
