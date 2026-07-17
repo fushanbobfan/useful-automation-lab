@@ -51,6 +51,19 @@ The deterministic report groups duplicate paths, counts affected files, and esti
 
 Duplicate results describe the content hashes recorded in the manifest. Run `manifest-verify` first when the files may have changed since the snapshot was created.
 
+## Enforce a manifest policy
+
+Apply deterministic size, count, and path rules to a validated inventory without touching its source directory:
+
+```powershell
+python -m useful_automation_lab.policy `
+  examples/snapshot-after.json examples/manifest-policy.json
+```
+
+A version 1 policy can set `max_files`, `max_total_bytes`, and `max_file_bytes`; require exact normalized paths with `required_paths`; and reject file or directory globs with `forbidden_patterns`. Forbidden patterns use the same relative POSIX and ancestor-matching rules as inventory exclusions, so `secrets` catches every file under that directory. Unknown fields, unsafe paths, duplicate rules, malformed inventories, and unsupported versions return exit code `2` instead of silently weakening the policy.
+
+The report includes observed totals, the normalized policy, and every violation in stable order. Exit code `0` means the policy passed, while `1` means the input was valid but one or more rules failed. Use `--output policy-report.json` to save the report. Because an inventory is a snapshot, run `manifest-verify` first when current on-disk state matters.
+
 ## Test
 
 ```powershell
