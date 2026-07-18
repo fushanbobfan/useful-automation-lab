@@ -1,0 +1,3 @@
+{"id":"evt-001","event":"job_started","status":"ok"}
+{"id":"evt-002","event":"file_processed","status":"ok"}
+{"id":"evt-003","event":"job_finished","status":"ok"}
