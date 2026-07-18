@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 
@@ -225,3 +228,46 @@ def audit_jsonl(
         },
         "errors": errors,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("dataset", type=Path)
+    parser.add_argument(
+        "--require",
+        action="append",
+        default=[],
+        dest="required_fields",
+        metavar="FIELD",
+    )
+    parser.add_argument("--unique-field")
+    parser.add_argument("--allow-blank-lines", action="store_true")
+    parser.add_argument("--max-line-bytes", type=int)
+    parser.add_argument("--max-errors", type=int, default=100)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        with args.dataset.open(encoding="utf-8-sig") as handle:
+            report = audit_jsonl(
+                handle,
+                required_fields=args.required_fields,
+                unique_field=args.unique_field,
+                allow_blank_lines=args.allow_blank_lines,
+                max_line_bytes=args.max_line_bytes,
+                max_errors=args.max_errors,
+            )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

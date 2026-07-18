@@ -1,9 +1,18 @@
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from useful_automation_lab.jsonl_audit import audit_jsonl
+import useful_automation_lab
+from useful_automation_lab.jsonl_audit import audit_jsonl, main
 
 
 class JsonlAuditTests(unittest.TestCase):
+    def test_jsonl_audit_api_is_available_from_package(self):
+        self.assertIs(useful_automation_lab.audit_jsonl, audit_jsonl)
+
     def test_valid_records_and_allowed_blank_lines_pass(self):
         report = audit_jsonl(
             [
@@ -100,6 +109,58 @@ class JsonlAuditTests(unittest.TestCase):
                     audit_jsonl([], **{name: value})
         with self.assertRaisesRegex(ValueError, "line 1"):
             audit_jsonl([b"{}"])
+
+    def test_cli_writes_a_passing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset = Path(directory) / "events.jsonl"
+            output = Path(directory) / "report.json"
+            dataset.write_text(
+                '{"id":1,"event":"started"}\n'
+                '{"id":2,"event":"finished"}\n',
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [
+                    str(dataset),
+                    "--require",
+                    "id",
+                    "--require",
+                    "event",
+                    "--unique-field",
+                    "id",
+                    "--output",
+                    str(output),
+                ]
+            )
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
+
+    def test_cli_returns_one_and_prints_audit_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset = Path(directory) / "events.jsonl"
+            dataset.write_text("[]\n", encoding="utf-8")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(dataset)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(stdout.getvalue())["errors"][0]["code"],
+                "non_object_record",
+            )
+
+    def test_cli_returns_two_for_invalid_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset = Path(directory) / "events.jsonl"
+            dataset.write_text("{}\n", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(dataset), "--max-errors", "0"])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":
