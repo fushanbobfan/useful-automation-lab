@@ -64,6 +64,20 @@ A version 1 policy can set `max_files`, `max_total_bytes`, and `max_file_bytes`;
 
 The report includes observed totals, the normalized policy, and every violation in stable order. Exit code `0` means the policy passed, while `1` means the input was valid but one or more rules failed. Use `--output policy-report.json` to save the report. Because an inventory is a snapshot, run `manifest-verify` first when current on-disk state matters.
 
+## Audit JSON Lines data
+
+Check a JSONL export before a pipeline consumes it:
+
+```powershell
+python -m useful_automation_lab.jsonl_audit examples/events.jsonl `
+  --require id --require event --unique-field id `
+  --max-line-bytes 1024 --max-errors 20
+```
+
+Every non-blank line must be a strict JSON object. The audit rejects malformed JSON, non-standard `NaN`/`Infinity` constants, duplicate keys at any nesting level, missing required fields, repeated values for the selected unique field, and oversized UTF-8 records. Blank lines fail by default; `--allow-blank-lines` permits them while keeping their count visible.
+
+The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
+
 ## Test
 
 ```powershell
