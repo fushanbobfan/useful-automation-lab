@@ -16,6 +16,7 @@ manifest-diff = "useful_automation_lab.compare:main"
 manifest-duplicates = "useful_automation_lab.duplicates:main"
 manifest-policy = "useful_automation_lab.policy:main"
 manifest-verify = "useful_automation_lab.verify:main"
+zip-audit = "useful_automation_lab.zip_audit:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

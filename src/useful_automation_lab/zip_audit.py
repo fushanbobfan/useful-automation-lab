@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
 import stat
+import sys
 from collections import Counter
 from pathlib import Path, PureWindowsPath
 from typing import Any
-from zipfile import ZipFile
+from zipfile import BadZipFile, LargeZipFile, ZipFile
 
 
 def _positive_integer(name: str, value: int) -> int:
@@ -203,3 +206,41 @@ def audit_zip(
         },
         "issues": issues,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("archive", type=Path)
+    parser.add_argument(
+        "--max-entry-bytes", type=int, default=100 * 1024 * 1024
+    )
+    parser.add_argument(
+        "--max-total-bytes", type=int, default=1024 * 1024 * 1024
+    )
+    parser.add_argument("--max-compression-ratio", type=float, default=100.0)
+    parser.add_argument("--max-errors", type=int, default=100)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        report = audit_zip(
+            args.archive,
+            max_entry_uncompressed_bytes=args.max_entry_bytes,
+            max_total_uncompressed_bytes=args.max_total_bytes,
+            max_compression_ratio=args.max_compression_ratio,
+            max_errors=args.max_errors,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (BadZipFile, LargeZipFile, OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
