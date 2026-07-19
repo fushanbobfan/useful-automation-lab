@@ -78,6 +78,20 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit ZIP archives before extraction
+
+Inspect a ZIP central directory without decompressing or writing any member files:
+
+```powershell
+$archive = Join-Path $env:TEMP "safe-example.zip"
+python examples/create_zip_demo.py $archive
+python -m useful_automation_lab.zip_audit $archive
+```
+
+The audit reports absolute or drive-qualified paths, parent traversal, backslash paths, duplicate names, case collisions, symbolic links, encrypted entries, oversized files, excessive aggregate size, and suspicious compression ratios. Default limits are 100 MiB per entry, 1 GiB total uncompressed content, and a 100:1 compression ratio; each can be overridden explicitly. `--max-errors` bounds detailed findings while the summary retains complete issue counts.
+
+Exit code `0` means the configured checks passed, `1` means archive metadata contained one or more hazards, and `2` means the archive or configuration could not be processed. Use `--output` to save the deterministic JSON report. This is a pre-extraction screening tool, not proof that archive contents are trustworthy; downstream code should still extract into a controlled destination and enforce its own resource limits.
+
 ## Test
 
 ```powershell
