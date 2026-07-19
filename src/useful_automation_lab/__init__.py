@@ -7,6 +7,7 @@ __all__ = [
     "InvalidPolicyError",
     "audit_inventory_policy",
     "audit_jsonl",
+    "audit_zip",
     "build_inventory",
     "compare_inventories",
     "find_duplicates",
@@ -49,4 +50,8 @@ def __getattr__(name: str) -> Any:
         from .jsonl_audit import audit_jsonl
 
         return audit_jsonl
+    if name == "audit_zip":
+        from .zip_audit import audit_zip
+
+        return audit_zip
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
