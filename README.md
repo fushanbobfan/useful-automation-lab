@@ -78,6 +78,19 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit text-file hygiene
+
+Check one text artifact before publishing or handing it to another tool:
+
+```powershell
+python -m useful_automation_lab.text_audit examples/text-audit-clean.txt `
+  --max-line-bytes 120 --max-errors 20
+```
+
+The audit requires valid UTF-8, rejects NUL bytes, flags UTF-8 BOMs, mixed newline styles, bare carriage-return endings, missing final newlines, trailing spaces or tabs, and optionally oversized lines. A file using only LF or only CRLF passes the newline-style check. Use `--allow-utf8-bom` or `--allow-missing-final-newline` only when the downstream format explicitly permits those choices.
+
+Reads are capped at 10 MiB by default and stop after one byte beyond that bound; `--max-file-bytes` can set a different explicit limit. The scanner retains total issue counts while `--max-errors` bounds detailed findings. Exit code `0` means the file passed, `1` means text issues were found, and `2` means the file could not be safely processed. The command never rewrites the source; `--output` only saves its JSON report.
+
 ## Audit ZIP archives before extraction
 
 Inspect a ZIP central directory without decompressing or writing any member files:
