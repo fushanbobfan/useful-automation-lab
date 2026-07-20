@@ -7,6 +7,7 @@ __all__ = [
     "InvalidPolicyError",
     "audit_inventory_policy",
     "audit_jsonl",
+    "audit_text_file",
     "audit_zip",
     "build_inventory",
     "compare_inventories",
@@ -50,6 +51,10 @@ def __getattr__(name: str) -> Any:
         from .jsonl_audit import audit_jsonl
 
         return audit_jsonl
+    if name == "audit_text_file":
+        from .text_audit import audit_text_file
+
+        return audit_text_file
     if name == "audit_zip":
         from .zip_audit import audit_zip
 
