@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -142,3 +145,39 @@ def audit_text_file(
         },
         "issues": issues,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("document", type=Path)
+    parser.add_argument("--max-file-bytes", type=int, default=10 * 1024 * 1024)
+    parser.add_argument("--max-line-bytes", type=int)
+    parser.add_argument("--max-errors", type=int, default=100)
+    parser.add_argument("--allow-utf8-bom", action="store_true")
+    parser.add_argument("--allow-missing-final-newline", action="store_true")
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        report = audit_text_file(
+            args.document,
+            max_file_bytes=args.max_file_bytes,
+            max_line_bytes=args.max_line_bytes,
+            max_errors=args.max_errors,
+            allow_utf8_bom=args.allow_utf8_bom,
+            require_final_newline=not args.allow_missing_final_newline,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

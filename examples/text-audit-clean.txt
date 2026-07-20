@@ -1,0 +1,3 @@
+deployment checklist
+configuration validated
+rollback steps documented

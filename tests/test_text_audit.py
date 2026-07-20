@@ -1,9 +1,12 @@
+import contextlib
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 import useful_automation_lab
-from useful_automation_lab.text_audit import audit_text_file
+from useful_automation_lab.text_audit import audit_text_file, main
 
 
 class TextAuditTests(unittest.TestCase):
@@ -89,6 +92,40 @@ class TextAuditTests(unittest.TestCase):
                 with self.subTest(value=value):
                     with self.assertRaisesRegex(ValueError, "positive integer"):
                         audit_text_file(document, max_errors=value)
+
+    def test_cli_returns_one_with_a_structured_issue_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            document = Path(directory) / "sample.txt"
+            document.write_bytes(b"alpha \n")
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(document)])
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 1)
+            self.assertFalse(report["passed"])
+            self.assertEqual(report["issues"][0]["code"], "trailing_whitespace")
+
+    def test_cli_returns_zero_for_clean_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            document = Path(directory) / "sample.txt"
+            document.write_text("alpha\nbeta\n", encoding="utf-8", newline="\n")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                exit_code = main([str(document), "--max-line-bytes", "10"])
+
+            self.assertEqual(exit_code, 0)
+
+    def test_cli_returns_two_when_the_read_limit_is_exceeded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            document = Path(directory) / "sample.txt"
+            document.write_bytes(b"hello")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(document), "--max-file-bytes", "4"])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":
