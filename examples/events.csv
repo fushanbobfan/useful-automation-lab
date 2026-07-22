@@ -1,0 +1,4 @@
+id,occurred_on,event,duration_ms,success
+1,2026-07-20,started,12.5,true
+2,2026-07-20,validated,8,false
+3,2026-07-21,published,,true
