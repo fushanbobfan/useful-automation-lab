@@ -64,6 +64,23 @@ A version 1 policy can set `max_files`, `max_total_bytes`, and `max_file_bytes`;
 
 The report includes observed totals, the normalized policy, and every violation in stable order. Exit code `0` means the policy passed, while `1` means the input was valid but one or more rules failed. Use `--output policy-report.json` to save the report. Because an inventory is a snapshot, run `manifest-verify` first when current on-disk state matters.
 
+## Audit CSV data
+
+Validate a CSV export's header, row shape, selected values, and field sizes before a pipeline consumes it:
+
+```powershell
+python -m useful_automation_lab.csv_audit examples/events.csv `
+  --require id --require occurred_on --require event `
+  --not-empty id --not-empty event --unique-column id `
+  --type id=integer --type occurred_on=date `
+  --type duration_ms=number --type success=boolean `
+  --max-field-bytes 1024 --max-errors 20
+```
+
+The strict streaming reader rejects missing, empty, or duplicate header names; missing configured columns; blank records; inconsistent row widths; duplicate values in one selected column; oversized UTF-8 fields; and malformed quoting. Optional type checks support canonical ISO dates, finite numbers, signed base-10 integers, and exact lowercase `true`/`false` booleans. Empty values skip type checks unless the column is also named with `--not-empty`.
+
+The scanner continues after ordinary row problems so full row totals remain visible, while `--max-errors` bounds the detailed issue list. A fatal CSV parse error stops at the last trustworthy physical line and sets `stopped_early` instead of claiming a complete scan. Exit code `0` means the audit passed, `1` means data or header issues were found, and `2` means the input, output, or configuration could not be processed. Use `--output` to save the JSON report; the source CSV is never rewritten.
+
 ## Audit JSON Lines data
 
 Check a JSONL export before a pipeline consumes it:
