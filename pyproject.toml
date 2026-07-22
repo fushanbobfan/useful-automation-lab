@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "useful-automation-lab"
-version = "0.9.0"
+version = "1.0.0"
 description = "Safe, inspectable utilities for repetitive local tasks"
 requires-python = ">=3.10"
 license = "MIT"
 
 [project.scripts]
 file-inventory = "useful_automation_lab.inventory:main"
+csv-audit = "useful_automation_lab.csv_audit:main"
 jsonl-audit = "useful_automation_lab.jsonl_audit:main"
 manifest-diff = "useful_automation_lab.compare:main"
 manifest-duplicates = "useful_automation_lab.duplicates:main"
