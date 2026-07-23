@@ -1,4 +1,7 @@
+import contextlib
 import hashlib
+import io
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -6,7 +9,7 @@ from contextlib import closing
 from pathlib import Path
 
 import useful_automation_lab
-from useful_automation_lab.sqlite_audit import audit_sqlite
+from useful_automation_lab.sqlite_audit import audit_sqlite, main
 
 
 def _digest(path: Path) -> str:
@@ -91,6 +94,37 @@ class SqliteAuditTests(unittest.TestCase):
             sqlite3.connect(database).close()
             with self.assertRaisesRegex(ValueError, "positive integer"):
                 audit_sqlite(database, max_errors=0)
+
+    def test_cli_reports_valid_and_invalid_databases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            valid_database = Path(directory) / "valid.sqlite"
+            sqlite3.connect(valid_database).close()
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                valid_exit = main([str(valid_database)])
+
+            self.assertEqual(valid_exit, 0)
+            self.assertTrue(json.loads(stdout.getvalue())["passed"])
+
+            invalid_database = Path(directory) / "invalid.sqlite"
+            invalid_database.write_text("not a database", encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()):
+                invalid_exit = main([str(invalid_database)])
+            self.assertEqual(invalid_exit, 2)
+
+    def test_cli_refuses_to_overwrite_source_database(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "source.sqlite"
+            sqlite3.connect(database).close()
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main(
+                    [str(database), "--output", str(database)]
+                )
+
+            self.assertEqual(exit_code, 2)
+            self.assertTrue(database.exists())
 
 
 if __name__ == "__main__":
