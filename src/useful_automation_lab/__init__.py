@@ -8,6 +8,7 @@ __all__ = [
     "audit_inventory_policy",
     "audit_csv",
     "audit_jsonl",
+    "audit_sqlite",
     "audit_text_file",
     "audit_zip",
     "build_inventory",
@@ -52,6 +53,10 @@ def __getattr__(name: str) -> Any:
         from .jsonl_audit import audit_jsonl
 
         return audit_jsonl
+    if name == "audit_sqlite":
+        from .sqlite_audit import audit_sqlite
+
+        return audit_sqlite
     if name == "audit_csv":
         from .csv_audit import audit_csv
 

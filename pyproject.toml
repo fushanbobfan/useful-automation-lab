@@ -17,6 +17,7 @@ manifest-diff = "useful_automation_lab.compare:main"
 manifest-duplicates = "useful_automation_lab.duplicates:main"
 manifest-policy = "useful_automation_lab.policy:main"
 manifest-verify = "useful_automation_lab.verify:main"
+sqlite-audit = "useful_automation_lab.sqlite_audit:main"
 text-audit = "useful_automation_lab.text_audit:main"
 zip-audit = "useful_automation_lab.zip_audit:main"
 

@@ -95,6 +95,23 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit SQLite databases
+
+Check a SQLite file's structural health, foreign-key consistency, and schema inventory without reading business-table rows:
+
+```powershell
+$database = Join-Path $env:TEMP "sqlite-audit-demo.sqlite"
+python examples/create_sqlite_demo.py $database
+python -m useful_automation_lab.sqlite_audit $database `
+  --max-errors 20 --output sqlite-report.json
+```
+
+The source is opened with SQLite URI `mode=ro`, connection-level `query_only`, disabled extension loading, and an untrusted-schema restriction. The report combines `quick_check`, a complete `foreign_key_check`, page and freelist metadata, user/application versions, object-type counts, and per-table column, key, foreign-key, and index counts. It records table names and structural metadata but does not select application rows or include schema SQL.
+
+`--max-errors` bounds detailed findings while full foreign-key violation counts remain visible. Exit code `0` means both checks passed, `1` means integrity or foreign-key problems were found, and `2` means the file, configuration, or report output could not be processed. The command refuses to use the source database as its output path.
+
+This is a read-only diagnostic, not a repair, migration, backup, malware scan, or proof of application-level correctness. Table names and schema counts can still be sensitive; review a saved JSON report before sharing it. Large databases may make SQLite's own health checks expensive even though no rows are returned to the report.
+
 ## Audit text-file hygiene
 
 Check one text artifact before publishing or handing it to another tool:
