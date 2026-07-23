@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -125,6 +126,17 @@ class SqliteAuditTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 2)
             self.assertTrue(database.exists())
+
+            alias = Path(directory) / "source-alias.sqlite"
+            os.link(database, alias)
+            before = _digest(database)
+            with contextlib.redirect_stderr(io.StringIO()):
+                alias_exit_code = main(
+                    [str(database), "--output", str(alias)]
+                )
+
+            self.assertEqual(alias_exit_code, 2)
+            self.assertEqual(_digest(database), before)
 
 
 if __name__ == "__main__":

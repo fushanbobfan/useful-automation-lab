@@ -149,11 +149,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if (
-            args.output is not None
-            and args.output.resolve() == args.database.resolve()
-        ):
-            raise ValueError("output must differ from the source database")
+        if args.output is not None:
+            same_path = args.output.resolve() == args.database.resolve()
+            same_file = (
+                args.output.exists() and args.output.samefile(args.database)
+            )
+            if same_path or same_file:
+                raise ValueError("output must differ from the source database")
         report = audit_sqlite(args.database, max_errors=args.max_errors)
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
         if args.output:
