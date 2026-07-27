@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
+import os
 import posixpath
+import sys
 from collections import Counter
 from pathlib import Path, PureWindowsPath
-from tarfile import open as open_tar
+from tarfile import TarError, open as open_tar
 from typing import Any
 
 
@@ -322,3 +326,66 @@ def audit_tar(
         },
         "issues": issues,
     }
+
+
+def _paths_alias(source: Path, output: Path) -> bool:
+    if source.resolve(strict=False) == output.resolve(strict=False):
+        return True
+    if source.exists() and output.exists():
+        try:
+            return os.path.samefile(source, output)
+        except OSError:
+            return False
+    return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("archive", type=Path)
+    parser.add_argument(
+        "--max-archive-bytes",
+        type=int,
+        default=512 * 1024 * 1024,
+    )
+    parser.add_argument(
+        "--max-member-bytes",
+        type=int,
+        default=100 * 1024 * 1024,
+    )
+    parser.add_argument(
+        "--max-total-bytes",
+        type=int,
+        default=1024 * 1024 * 1024,
+    )
+    parser.add_argument("--max-members", type=int, default=10_000)
+    parser.add_argument("--max-expansion-ratio", type=float, default=100.0)
+    parser.add_argument("--max-errors", type=int, default=100)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        if args.output and _paths_alias(args.archive, args.output):
+            raise ValueError("output path must not alias the source archive")
+        report = audit_tar(
+            args.archive,
+            max_archive_bytes=args.max_archive_bytes,
+            max_member_bytes=args.max_member_bytes,
+            max_total_bytes=args.max_total_bytes,
+            max_members=args.max_members,
+            max_expansion_ratio=args.max_expansion_ratio,
+            max_errors=args.max_errors,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            print(rendered, end="")
+    except (OSError, TarError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

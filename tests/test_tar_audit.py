@@ -1,10 +1,14 @@
+import contextlib
 import io
+import json
+import os
 import tarfile
 import tempfile
 import unittest
 from pathlib import Path
 
-from useful_automation_lab.tar_audit import audit_tar
+import useful_automation_lab
+from useful_automation_lab.tar_audit import audit_tar, main
 
 
 class TarAuditTests(unittest.TestCase):
@@ -29,6 +33,7 @@ class TarAuditTests(unittest.TestCase):
 
             report = audit_tar(archive)
 
+        self.assertIs(useful_automation_lab.audit_tar, audit_tar)
         self.assertTrue(report["passed"])
         self.assertEqual(report["summary"]["inspected_members"], 2)
         self.assertEqual(report["summary"]["file_count"], 2)
@@ -153,6 +158,56 @@ class TarAuditTests(unittest.TestCase):
                 with self.subTest(name=name, value=value):
                     with self.assertRaisesRegex(ValueError, name):
                         audit_tar(archive, **{name: value})
+
+    def test_cli_writes_a_passing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = self.write_tar(directory, [("safe.txt", "value")])
+            output = Path(directory) / "report.json"
+
+            exit_code = main([str(archive), "--output", str(output)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
+
+    def test_cli_returns_one_for_archive_hazards(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = self.write_tar(directory, [("../escape.txt", "value")])
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(archive)])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(stdout.getvalue())["issues"][0]["code"],
+                "parent_traversal",
+            )
+
+    def test_cli_returns_two_for_invalid_archive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "not-a-tar.tar"
+            archive.write_text("not a tar", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(archive)])
+
+            self.assertEqual(exit_code, 2)
+
+    def test_cli_refuses_direct_and_hard_link_output_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = self.write_tar(directory, [("safe.txt", "value")])
+            hard_link = Path(directory) / "archive-link.tar"
+            os.link(archive, hard_link)
+
+            for output in (archive, hard_link):
+                with self.subTest(output=output):
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        exit_code = main(
+                            [str(archive), "--output", str(output)]
+                        )
+                    self.assertEqual(exit_code, 2)
+
+            self.assertTrue(audit_tar(archive)["passed"])
 
 
 if __name__ == "__main__":
