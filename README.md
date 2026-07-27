@@ -139,6 +139,22 @@ The audit reports absolute or drive-qualified paths, parent traversal, backslash
 
 Exit code `0` means the configured checks passed, `1` means archive metadata contained one or more hazards, and `2` means the archive or configuration could not be processed. Use `--output` to save the deterministic JSON report. This is a pre-extraction screening tool, not proof that archive contents are trustworthy; downstream code should still extract into a controlled destination and enforce its own resource limits.
 
+## Audit TAR archives before extraction
+
+Inspect TAR, TAR.GZ, TAR.BZ2, or TAR.XZ headers without extracting or reading member payloads:
+
+```powershell
+$archive = Join-Path $env:TEMP "safe-example.tar.gz"
+python examples/create_tar_demo.py $archive
+python -m useful_automation_lab.tar_audit $archive
+```
+
+The audit reports absolute and drive-qualified names, parent traversal, backslashes, duplicate and case-colliding paths, symbolic and hard links, unsafe link targets, device/FIFO entries, unsupported member types, oversized members, excessive declared content, excessive expansion, and an overlong member list. Link entries are reported even when their target appears contained because extraction behavior varies across tools and platforms.
+
+Defaults reject physical archives above 512 MiB without opening them, inspect at most 10,000 members, and allow at most 100 MiB per regular member, 1 GiB of declared regular-file content, and a 100:1 declared-size-to-archive-size ratio. The scan stops after the member cap and marks totals as partial. `--max-errors` bounds only detailed issues; summary counts remain complete for the inspected prefix. Opening a compressed TAR still decompresses the stream far enough to enumerate its headers, so these checks reduce risk but do not make untrusted archives cost-free.
+
+Exit code `0` means the configured metadata checks passed, `1` means hazards were found, and `2` means the archive, configuration, or report output could not be processed. `--output` writes JSON but refuses direct, symbolic-path, or hard-link aliases of the source archive. Member paths and link targets appear in the report and may themselves be sensitive. This is pre-extraction screening, not malware detection, content validation, or proof that extraction is safe.
+
 ## Test
 
 ```powershell
