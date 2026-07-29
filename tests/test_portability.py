@@ -34,6 +34,8 @@ class PathPortabilityTests(unittest.TestCase):
             {
                 "files": 2,
                 "issue_count": 0,
+                "reported_issues": 0,
+                "truncated_issues": 0,
                 "affected_path_count": 0,
                 "issue_codes": {},
             },
@@ -109,6 +111,55 @@ class PathPortabilityTests(unittest.TestCase):
         with self.assertRaises(InvalidInventoryError):
             audit_path_portability([{"path": "missing-fields"}])
 
+    def test_length_and_file_directory_collisions_are_reported(self):
+        long_component = "x" * 12
+        report = audit_path_portability(
+            [
+                entry("docs"),
+                entry("docs/readme.md", "b"),
+                entry(f"src/{long_component}", "c"),
+            ],
+            max_component_bytes=10,
+            max_path_bytes=15,
+        )
+
+        self.assertEqual(
+            [issue["code"] for issue in report["issues"]],
+            [
+                "path_too_long",
+                "component_too_long",
+                "file_directory_collision",
+            ],
+        )
+        self.assertEqual(
+            report["issues"][2]["first_path"],
+            "docs",
+        )
+
+    def test_error_details_are_bounded_without_losing_totals(self):
+        report = audit_path_portability(
+            [entry("AUX"), entry("CON", "b"), entry("NUL", "c")],
+            max_errors=1,
+        )
+
+        self.assertEqual(report["summary"]["issue_count"], 3)
+        self.assertEqual(report["summary"]["reported_issues"], 1)
+        self.assertEqual(report["summary"]["truncated_issues"], 2)
+        self.assertEqual(report["summary"]["affected_path_count"], 3)
+        self.assertEqual(len(report["issues"]), 1)
+
+    def test_invalid_limits_are_rejected(self):
+        inventory = [entry("safe.txt")]
+        for kwargs in (
+            {"max_component_bytes": 0},
+            {"max_component_bytes": True},
+            {"max_path_bytes": 0},
+            {"max_errors": -1},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaisesRegex(ValueError, "positive integer"):
+                    audit_path_portability(inventory, **kwargs)
+
     def test_cli_prints_a_failed_audit_and_returns_one(self):
         with tempfile.TemporaryDirectory() as directory:
             inventory = Path(directory) / "inventory.json"
@@ -152,6 +203,20 @@ class PathPortabilityTests(unittest.TestCase):
                 exit_code = main([str(inventory)])
 
             self.assertEqual(exit_code, 2)
+
+    def test_cli_refuses_to_overwrite_the_source_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            original = json.dumps([entry("safe.txt")])
+            inventory.write_text(original, encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main(
+                    [str(inventory), "--output", str(inventory)]
+                )
+
+            self.assertEqual(exit_code, 2)
+            self.assertEqual(inventory.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":

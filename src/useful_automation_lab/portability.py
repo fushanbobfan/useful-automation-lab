@@ -34,26 +34,72 @@ def _collision_code(first: str, second: str) -> str:
     return "case_unicode_collision"
 
 
-def audit_path_portability(inventory: Any) -> dict[str, Any]:
+def _positive_integer(name: str, value: int | None, *, optional: bool) -> int | None:
+    if value is None and optional:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def audit_path_portability(
+    inventory: Any,
+    *,
+    max_component_bytes: int = 255,
+    max_path_bytes: int | None = None,
+    max_errors: int = 100,
+) -> dict[str, Any]:
     """Return deterministic path hazards without touching the source directory."""
 
     entries = _validate_entries(inventory, "inventory")
+    maximum_component_bytes = _positive_integer(
+        "max_component_bytes", max_component_bytes, optional=False
+    )
+    maximum_path_bytes = _positive_integer(
+        "max_path_bytes", max_path_bytes, optional=True
+    )
+    maximum_errors = _positive_integer("max_errors", max_errors, optional=False)
+    assert maximum_component_bytes is not None
+    assert maximum_errors is not None
+
     issues = []
     issue_codes: Counter[str] = Counter()
     affected_paths: set[str] = set()
+    issue_count = 0
 
     def add_issue(code: str, path: str, **details: Any) -> None:
+        nonlocal issue_count
+        issue_count += 1
         issue_codes[code] += 1
         affected_paths.add(path)
         first_path = details.get("first_path")
         if isinstance(first_path, str):
             affected_paths.add(first_path)
-        issues.append({"code": code, "path": path, **details})
+        if len(issues) < maximum_errors:
+            issues.append({"code": code, "path": path, **details})
 
     portable_paths: dict[str, str] = {}
     for entry in sorted(entries, key=lambda item: item["path"]):
         path = str(entry["path"])
+        path_bytes = len(path.encode("utf-8"))
+        if maximum_path_bytes is not None and path_bytes > maximum_path_bytes:
+            add_issue(
+                "path_too_long",
+                path,
+                actual_bytes=path_bytes,
+                maximum_bytes=maximum_path_bytes,
+            )
         for component_index, component in enumerate(PurePosixPath(path).parts):
+            component_bytes = len(component.encode("utf-8"))
+            if component_bytes > maximum_component_bytes:
+                add_issue(
+                    "component_too_long",
+                    path,
+                    component=component,
+                    component_index=component_index,
+                    actual_bytes=component_bytes,
+                    maximum_bytes=maximum_component_bytes,
+                )
             control_characters = sorted(
                 {
                     f"U+{ord(character):04X}"
@@ -108,26 +154,65 @@ def audit_path_portability(inventory: Any) -> dict[str, Any]:
         elif first_path is None:
             portable_paths[portable_key] = path
 
+    inventory_paths = {str(entry["path"]) for entry in entries}
+    for path in sorted(inventory_paths):
+        for parent in PurePosixPath(path).parents:
+            if parent == PurePosixPath("."):
+                continue
+            parent_path = parent.as_posix()
+            if parent_path in inventory_paths:
+                add_issue(
+                    "file_directory_collision",
+                    path,
+                    first_path=parent_path,
+                )
+
     return {
-        "passed": not issues,
+        "passed": issue_count == 0,
         "summary": {
             "files": len(entries),
-            "issue_count": len(issues),
+            "issue_count": issue_count,
+            "reported_issues": len(issues),
+            "truncated_issues": issue_count - len(issues),
             "affected_path_count": len(affected_paths),
             "issue_codes": dict(sorted(issue_codes.items())),
+        },
+        "configuration": {
+            "max_component_bytes": maximum_component_bytes,
+            "max_path_bytes": maximum_path_bytes,
+            "max_errors": maximum_errors,
         },
         "issues": issues,
     }
 
 
+def _paths_alias(source: Path, output: Path) -> bool:
+    if source.resolve() == output.resolve():
+        return True
+    try:
+        return source.samefile(output)
+    except (FileNotFoundError, OSError):
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inventory", type=Path)
+    parser.add_argument("--max-component-bytes", type=int, default=255)
+    parser.add_argument("--max-path-bytes", type=int)
+    parser.add_argument("--max-errors", type=int, default=100)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
 
     try:
-        report = audit_path_portability(load_inventory(args.inventory))
+        if args.output is not None and _paths_alias(args.inventory, args.output):
+            raise ValueError("output must not alias the source inventory")
+        report = audit_path_portability(
+            load_inventory(args.inventory),
+            max_component_bytes=args.max_component_bytes,
+            max_path_bytes=args.max_path_bytes,
+            max_errors=args.max_errors,
+        )
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
         if args.output is None:
             print(rendered, end="")
