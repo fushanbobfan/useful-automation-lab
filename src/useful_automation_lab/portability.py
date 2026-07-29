@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import sys
 import unicodedata
 from collections import Counter
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .compare import _validate_entries
+from .compare import InvalidInventoryError, _validate_entries, load_inventory
 
 
 _WINDOWS_FORBIDDEN = frozenset('<>:"|?*')
@@ -115,3 +118,27 @@ def audit_path_portability(inventory: Any) -> dict[str, Any]:
         },
         "issues": issues,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("inventory", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        report = audit_path_portability(load_inventory(args.inventory))
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output is None:
+            print(rendered, end="")
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+    except (InvalidInventoryError, OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

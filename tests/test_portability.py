@@ -1,9 +1,14 @@
+import contextlib
+import io
+import json
+import tempfile
 import unittest
 import unicodedata
+from pathlib import Path
 
 import useful_automation_lab
 from useful_automation_lab.compare import InvalidInventoryError
-from useful_automation_lab.portability import audit_path_portability
+from useful_automation_lab.portability import audit_path_portability, main
 
 
 def entry(path: str, marker: str = "a") -> dict[str, str | int]:
@@ -103,6 +108,50 @@ class PathPortabilityTests(unittest.TestCase):
     def test_invalid_inventory_is_rejected_before_the_audit(self):
         with self.assertRaises(InvalidInventoryError):
             audit_path_portability([{"path": "missing-fields"}])
+
+    def test_cli_prints_a_failed_audit_and_returns_one(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            inventory.write_text(
+                json.dumps([entry("CON.txt")]),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main([str(inventory)])
+
+            report = json.loads(stdout.getvalue())
+            self.assertEqual(exit_code, 1)
+            self.assertFalse(report["passed"])
+            self.assertEqual(report["issues"][0]["code"], "windows_reserved_name")
+
+    def test_cli_writes_a_passing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = root / "inventory.json"
+            output = root / "report.json"
+            inventory.write_text(
+                json.dumps([entry("src/module.py")]),
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [str(inventory), "--output", str(output)]
+            )
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
+
+    def test_cli_returns_two_for_invalid_inventory_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory = Path(directory) / "inventory.json"
+            inventory.write_text("{", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                exit_code = main([str(inventory)])
+
+            self.assertEqual(exit_code, 2)
 
 
 if __name__ == "__main__":
