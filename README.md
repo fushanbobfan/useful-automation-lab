@@ -64,6 +64,21 @@ A version 1 policy can set `max_files`, `max_total_bytes`, and `max_file_bytes`;
 
 The report includes observed totals, the normalized policy, and every violation in stable order. Exit code `0` means the policy passed, while `1` means the input was valid but one or more rules failed. Use `--output policy-report.json` to save the report. Because an inventory is a snapshot, run `manifest-verify` first when current on-disk state matters.
 
+## Audit manifest path portability
+
+Check a validated inventory for common cross-platform path hazards before moving an export or build artifact between filesystems:
+
+```powershell
+python -m useful_automation_lab.portability `
+  examples/snapshot-after.json --max-path-bytes 240
+```
+
+The audit flags Windows reserved device names, forbidden characters, trailing spaces or dots, ASCII control characters, UTF-8 components longer than the default 255-byte limit, optional relative-path length limits, file-versus-directory conflicts, and whole-path collisions after case folding or Unicode NFC normalization. Pure case, pure normalization, and combined case-plus-normalization collisions remain distinct in the report.
+
+Issue details are deterministic and bounded by `--max-errors`, while total issue counts, affected-path counts, and per-code counts remain complete. Exit code `0` means the manifest paths passed, `1` means portability hazards were found, and `2` means the inventory or configuration was invalid. A report output cannot directly, symbolically, or through a hard link overwrite the source inventory.
+
+This command audits paths recorded in a snapshot; it does not inspect or rename live files. Run `manifest-verify` first when the directory may have changed. Filesystem rules vary, UTF-8 byte limits are only a conservative interoperability check, and a passing report does not guarantee that every archive tool, network share, checkout, or target filesystem will accept the paths.
+
 ## Audit CSV data
 
 Validate a CSV export's header, row shape, selected values, and field sizes before a pipeline consumes it:
