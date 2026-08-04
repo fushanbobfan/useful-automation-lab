@@ -15,6 +15,7 @@ __all__ = [
     "audit_zip",
     "build_inventory",
     "compare_inventories",
+    "compare_sqlite_schemas",
     "find_duplicates",
     "load_inventory",
     "load_policy",
@@ -23,6 +24,10 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    if name == "compare_sqlite_schemas":
+        from .sqlite_schema_diff import compare_sqlite_schemas
+
+        return compare_sqlite_schemas
     if name == "build_inventory":
         from .inventory import build_inventory
 
