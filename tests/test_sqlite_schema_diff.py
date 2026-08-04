@@ -118,6 +118,41 @@ class SqliteSchemaDiffTests(unittest.TestCase):
             self.assertEqual(report["summary"]["truncated_changes"], 4)
             self.assertEqual(len(report["changes"]), 2)
 
+    def test_foreign_key_targets_are_compared_structurally(self):
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / "reference.sqlite"
+            candidate = Path(directory) / "candidate.sqlite"
+            for database, target in (
+                (reference, "parent_a"),
+                (candidate, "parent_b"),
+            ):
+                with closing(sqlite3.connect(database)) as connection:
+                    connection.execute("CREATE TABLE parent_a (id INTEGER PRIMARY KEY)")
+                    connection.execute("CREATE TABLE parent_b (id INTEGER PRIMARY KEY)")
+                    connection.execute(
+                        "CREATE TABLE child ("
+                        "parent_id INTEGER, "
+                        f"FOREIGN KEY (parent_id) REFERENCES {target}(id))"
+                    )
+                    connection.commit()
+
+            report = compare_sqlite_schemas(
+                reference,
+                candidate,
+                max_changes=2,
+            )
+
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["summary"]["change_count"], 2)
+            self.assertEqual(
+                [change["kind"] for change in report["changes"]],
+                ["foreign_key_removed", "foreign_key_added"],
+            )
+            self.assertEqual(
+                report["changes"][1]["foreign_key"]["referenced_table"],
+                "parent_b",
+            )
+
     def test_invalid_paths_and_configuration_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             reference = Path(directory) / "reference.sqlite"

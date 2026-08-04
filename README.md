@@ -127,6 +127,23 @@ The source is opened with SQLite URI `mode=ro`, connection-level `query_only`, d
 
 This is a read-only diagnostic, not a repair, migration, backup, malware scan, or proof of application-level correctness. Table names and schema counts can still be sensitive; review a saved JSON report before sharing it. Large databases may make SQLite's own health checks expensive even though no rows are returned to the report.
 
+## Compare SQLite schemas
+
+Catch an unexpected structural change before an application opens a candidate database. The demo creates two disposable databases, then the comparison enforces an explicit atomic-change budget:
+
+```powershell
+$demo = Join-Path $env:TEMP "sqlite-schema-diff-demo"
+python examples/create_sqlite_schema_diff_demo.py $demo
+python -m useful_automation_lab.sqlite_schema_diff `
+  (Join-Path $demo "schema-reference.sqlite") `
+  (Join-Path $demo "schema-candidate.sqlite") `
+  --max-changes 1 --max-details 50
+```
+
+Both files are opened with SQLite URI `mode=ro`, `query_only`, disabled extension loading, and an untrusted-schema restriction. The deterministic report covers main-schema table additions and removals; table options; declared and hidden columns; index definitions; and grouped foreign-key targets, column pairs, and actions. A zero change budget is the default. Exit code `0` means the change count is within budget, `1` reports a valid schema difference above budget, and `2` identifies an invalid database, unsafe output alias, or invalid configuration.
+
+`--max-details` bounds the returned change list while exact totals and per-kind counts remain visible. The comparison does not execute migrations, select application rows, or compare data, views, triggers, virtual-table implementations, database pragmas, or application semantics. SQLite type/default declarations are compared structurally, so a clean result is not a backward-compatibility proof. Schema identifiers and default expressions can still be sensitive; inspect JSON reports before publishing them.
+
 ## Audit text-file hygiene
 
 Check one text artifact before publishing or handing it to another tool:
