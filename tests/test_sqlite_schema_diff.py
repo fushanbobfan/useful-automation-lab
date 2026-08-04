@@ -1,11 +1,15 @@
 import hashlib
+import contextlib
+import io
+import json
 import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
 
-from useful_automation_lab.sqlite_schema_diff import compare_sqlite_schemas
+import useful_automation_lab
+from useful_automation_lab.sqlite_schema_diff import compare_sqlite_schemas, main
 
 
 def _digest(path: Path) -> str:
@@ -60,6 +64,10 @@ class SqliteSchemaDiffTests(unittest.TestCase):
             )
 
             self.assertTrue(report["passed"])
+            self.assertIs(
+                useful_automation_lab.compare_sqlite_schemas,
+                compare_sqlite_schemas,
+            )
             self.assertEqual(report["summary"]["reference_table_count"], 3)
             self.assertEqual(report["summary"]["candidate_table_count"], 3)
             self.assertEqual(report["summary"]["changed_table_count"], 4)
@@ -126,6 +134,53 @@ class SqliteSchemaDiffTests(unittest.TestCase):
                             reference,
                             max_details=option,
                         )
+
+    def test_cli_writes_a_failed_report_and_accepts_a_change_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / "reference.sqlite"
+            candidate = Path(directory) / "candidate.sqlite"
+            output = Path(directory) / "diff.json"
+            _create_reference(reference)
+            _create_candidate(candidate)
+
+            failed_exit = main(
+                [str(reference), str(candidate), "--output", str(output)]
+            )
+            report = json.loads(output.read_text(encoding="utf-8"))
+
+            self.assertEqual(failed_exit, 1)
+            self.assertFalse(report["passed"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                passed_exit = main(
+                    [str(reference), str(candidate), "--max-changes", "6"]
+                )
+            self.assertEqual(passed_exit, 0)
+
+    def test_cli_rejects_invalid_database_and_output_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / "reference.sqlite"
+            candidate = Path(directory) / "candidate.sqlite"
+            _create_reference(reference)
+            _create_candidate(candidate)
+
+            before = _digest(reference)
+            with contextlib.redirect_stderr(io.StringIO()):
+                alias_exit = main(
+                    [
+                        str(reference),
+                        str(candidate),
+                        "--output",
+                        str(reference),
+                    ]
+                )
+            self.assertEqual(alias_exit, 2)
+            self.assertEqual(_digest(reference), before)
+
+            invalid = Path(directory) / "invalid.sqlite"
+            invalid.write_text("not a database", encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()):
+                invalid_exit = main([str(reference), str(invalid)])
+            self.assertEqual(invalid_exit, 2)
 
 
 if __name__ == "__main__":

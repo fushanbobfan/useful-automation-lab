@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -257,3 +259,49 @@ def compare_sqlite_schemas(
         "changes": changes[:max_details],
         "configuration": {"max_details": max_details},
     }
+
+
+def _paths_alias(source: Path, output: Path) -> bool:
+    if source.resolve() == output.resolve():
+        return True
+    try:
+        return source.samefile(output)
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("reference", type=Path)
+    parser.add_argument("candidate", type=Path)
+    parser.add_argument("--max-changes", type=int, default=0)
+    parser.add_argument("--max-details", type=int, default=100)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        if args.output is not None and (
+            _paths_alias(args.reference, args.output)
+            or _paths_alias(args.candidate, args.output)
+        ):
+            raise ValueError("output must differ from both source databases")
+        report = compare_sqlite_schemas(
+            args.reference,
+            args.candidate,
+            max_changes=args.max_changes,
+            max_details=args.max_details,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output is None:
+            print(rendered, end="")
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+    except (sqlite3.DatabaseError, OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
