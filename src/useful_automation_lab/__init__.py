@@ -4,9 +4,11 @@ from typing import Any
 
 __all__ = [
     "InvalidInventoryError",
+    "InvalidEnvContractError",
     "InvalidPolicyError",
     "audit_inventory_policy",
     "audit_csv",
+    "audit_env_contract",
     "audit_jsonl",
     "audit_path_portability",
     "audit_sqlite",
@@ -18,12 +20,33 @@ __all__ = [
     "compare_sqlite_schemas",
     "find_duplicates",
     "load_inventory",
+    "load_env_contract",
     "load_policy",
+    "parse_env_file",
     "verify_directory",
 ]
 
 
 def __getattr__(name: str) -> Any:
+    if name in {
+        "InvalidEnvContractError",
+        "audit_env_contract",
+        "load_env_contract",
+        "parse_env_file",
+    }:
+        from .env_contract import (
+            InvalidEnvContractError,
+            audit_env_contract,
+            load_env_contract,
+            parse_env_file,
+        )
+
+        return {
+            "InvalidEnvContractError": InvalidEnvContractError,
+            "audit_env_contract": audit_env_contract,
+            "load_env_contract": load_env_contract,
+            "parse_env_file": parse_env_file,
+        }[name]
     if name == "compare_sqlite_schemas":
         from .sqlite_schema_diff import compare_sqlite_schemas
 

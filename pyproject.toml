@@ -12,6 +12,7 @@ license = "MIT"
 [project.scripts]
 file-inventory = "useful_automation_lab.inventory:main"
 csv-audit = "useful_automation_lab.csv_audit:main"
+env-contract = "useful_automation_lab.env_contract:main"
 jsonl-audit = "useful_automation_lab.jsonl_audit:main"
 manifest-diff = "useful_automation_lab.compare:main"
 manifest-duplicates = "useful_automation_lab.duplicates:main"
