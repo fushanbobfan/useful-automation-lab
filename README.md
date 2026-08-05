@@ -110,6 +110,21 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit dotenv configuration contracts
+
+Check that a dotenv file supplies the expected configuration keys without copying its values into the report:
+
+```powershell
+python -m useful_automation_lab.env_contract `
+  examples/env-contract.json examples/service.env.example
+```
+
+A version 1 JSON contract declares `required_keys`, `optional_keys`, `non_empty_keys`, and `allowed_prefixes`. Key names use the portable `[A-Za-z_][A-Za-z0-9_]*` form. Required and optional sets must be disjoint, every non-empty key must be declared, unknown contract fields fail closed, and duplicate rules are rejected. `--max-extra-keys` allows an explicit number of undeclared keys; prefix-matched keys do not consume that budget.
+
+The bounded UTF-8 dotenv reader accepts comments, blank lines, ordinary `KEY=value` assignments, and an optional `export ` prefix. It rejects invalid or duplicate keys and reduces each value immediately to a blank/non-blank flag. JSON output contains contract keys, counts, line numbers, and bounded violation details, never dotenv values. Empty, `''`, and `""` are treated as blank; no interpolation, escape processing, command substitution, or inline-comment interpretation is performed.
+
+Exit code `0` means the contract passed, `1` reports missing required keys, blank keys that must be non-empty, or excess undeclared keys, and `2` identifies malformed input, files above the default 1 MiB bound, unsafe output aliasing, or invalid configuration. This is a configuration-shape audit, not a secret scanner, dotenv runtime implementation, permission check, deployment validator, or proof that supplied values are correct or safe. Keep real environment files private and use synthetic values in committed examples.
+
 ## Audit SQLite databases
 
 Check a SQLite file's structural health, foreign-key consistency, and schema inventory without reading business-table rows:

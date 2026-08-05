@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "required_keys": [
+    "LOG_LEVEL",
+    "SERVICE_URL"
+  ],
+  "optional_keys": [
+    "CACHE_URL"
+  ],
+  "non_empty_keys": [
+    "LOG_LEVEL",
+    "SERVICE_URL"
+  ],
+  "allowed_prefixes": [
+    "FEATURE_"
+  ]
+}
