@@ -17,9 +17,11 @@ __all__ = [
     "audit_zip",
     "build_inventory",
     "compare_inventories",
+    "compare_jsonl_structures",
     "compare_sqlite_schemas",
     "find_duplicates",
     "load_inventory",
+    "load_jsonl_records",
     "load_env_contract",
     "load_policy",
     "parse_env_file",
@@ -28,6 +30,13 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    if name in {"compare_jsonl_structures", "load_jsonl_records"}:
+        from .jsonl_structure import compare_jsonl_structures, load_jsonl_records
+
+        return {
+            "compare_jsonl_structures": compare_jsonl_structures,
+            "load_jsonl_records": load_jsonl_records,
+        }[name]
     if name in {
         "InvalidEnvContractError",
         "audit_env_contract",
