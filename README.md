@@ -110,6 +110,23 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Compare JSONL structure
+
+Detect top-level field drift between two strict JSONL exports without copying scalar values into the report:
+
+```powershell
+python -m useful_automation_lab.jsonl_structure `
+  examples/jsonl-structure-reference.jsonl `
+  examples/jsonl-structure-candidate.jsonl `
+  --max-presence-rate-delta 0.50 `
+  --max-null-rate-delta 0.50 `
+  --max-changes 2
+```
+
+Each profile reports record count plus, for every top-level field, presence and missing counts, requiredness, null rate among present records, and non-null JSON type counts. The comparison reports added or removed fields, non-null type-set changes, and presence/null-rate changes beyond explicit tolerances. `--max-details` bounds returned changes while full totals and per-kind counts remain visible. Inputs are strict JSONL object streams with duplicate-key and non-standard-number rejection and a default 10 MiB file bound.
+
+Exit code `0` means the atomic change count is within budget, `1` reports valid structural drift above budget, and `2` identifies malformed or oversized inputs, unsafe output aliasing, or invalid configuration. Reports contain field names and aggregate structure but no scalar values; field names and type/presence patterns can still be sensitive. This is a top-level observed-sample profile, not JSON Schema validation, nested-shape comparison, semantic compatibility analysis, or proof that a downstream consumer will accept the candidate data.
+
 ## Audit dotenv configuration contracts
 
 Check that a dotenv file supplies the expected configuration keys without copying its values into the report:
