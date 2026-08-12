@@ -127,6 +127,27 @@ Each profile reports record count plus, for every top-level field, presence and 
 
 Exit code `0` means the atomic change count is within budget, `1` reports valid structural drift above budget, and `2` identifies malformed or oversized inputs, unsafe output aliasing, or invalid configuration. Reports contain field names and aggregate structure but no scalar values; field names and type/presence patterns can still be sensitive. This is a top-level observed-sample profile, not JSON Schema validation, nested-shape comparison, semantic compatibility analysis, or proof that a downstream consumer will accept the candidate data.
 
+## Audit JSONL references
+
+Check the join between parent and child JSONL exports before loading them into a pipeline:
+
+```powershell
+python -m useful_automation_lab.jsonl_references `
+  examples/reference-parents.jsonl `
+  examples/reference-children.jsonl `
+  --parent-id-field id `
+  --child-reference-field customer_id `
+  --max-orphan-references 1 `
+  --max-unreferenced-parents 1 `
+  --max-children-per-parent 2
+```
+
+The audit requires unique scalar parent IDs and one scalar reference on every child. It reports orphaned child references, parents with no children, the observed maximum children per parent, and bounded join-cardinality details. String and finite numeric identifiers are supported without conflating values such as `1` and `"1"`. Both inputs use the strict JSONL object loader, including duplicate-key and non-standard-number rejection plus a configurable file-size bound.
+
+Exit code `0` means every configured maximum passed, `1` reports referential-integrity or fan-out threshold failures, and `2` identifies malformed or oversized inputs, duplicate parent IDs, unsafe file aliasing, or invalid configuration. The JSON report omits non-ID payload values, but join identifiers themselves can be sensitive; set `--max-details 0` or review saved output before sharing it.
+
+This is a read-only equality-join audit for two finite exports. It does not validate nested or composite keys, infer relationships, repair records, enforce database constraints, prove application-level consistency, or explain whether an orphan, unreferenced parent, or high fan-out is erroneous. Thresholds should reflect the intended data model.
+
 ## Audit dotenv configuration contracts
 
 Check that a dotenv file supplies the expected configuration keys without copying its values into the report:
