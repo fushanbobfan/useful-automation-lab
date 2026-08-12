@@ -1,0 +1,5 @@
+{"id":"event-1","parent_id":"account-1","kind":"created"}
+{"id":"event-2","parent_id":"account-1","kind":"updated"}
+{"id":"event-3","parent_id":"account-2","kind":"created"}
+{"id":"event-4","parent_id":"account-3","kind":"created"}
+{"id":"event-5","parent_id":"retired-account","kind":"imported"}

@@ -1,8 +1,12 @@
+import contextlib
+import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import useful_automation_lab
-from useful_automation_lab.jsonl_references import audit_jsonl_references
+from useful_automation_lab.jsonl_references import audit_jsonl_references, main
 
 
 class JsonlReferenceTests(unittest.TestCase):
@@ -134,6 +138,60 @@ class JsonlReferenceTests(unittest.TestCase):
             audit_jsonl_references([{"id": ["nested"]}], self.children)
         with self.assertRaisesRegex(ValueError, "missing parent_id"):
             audit_jsonl_references(self.parents, [{"id": "child"}])
+
+    def test_cli_writes_bounded_id_only_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = root / "parents.jsonl"
+            children = root / "children.jsonl"
+            output = root / "report.json"
+            parents.write_text(
+                "".join(json.dumps(item) + "\n" for item in self.parents),
+                encoding="utf-8",
+            )
+            children.write_text(
+                "".join(json.dumps(item) + "\n" for item in self.children),
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [
+                    str(parents),
+                    str(children),
+                    "--max-orphan-references",
+                    "2",
+                    "--max-unreferenced-parents",
+                    "1",
+                    "--max-children-per-parent",
+                    "2",
+                    "--output",
+                    str(output),
+                ]
+            )
+
+            self.assertEqual(exit_code, 0)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["summary"]["orphan_reference_count"], 2)
+            self.assertNotIn("child-one", output.read_text(encoding="utf-8"))
+
+    def test_cli_uses_failure_and_invalid_exit_codes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = root / "parents.jsonl"
+            children = root / "children.jsonl"
+            parents.write_text('{"id":"p1"}\n', encoding="utf-8")
+            children.write_text('{"parent_id":"missing"}\n', encoding="utf-8")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(parents), str(children)]), 1)
+            original = parents.read_text(encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(
+                    main([str(parents), str(children), "--output", str(parents)]),
+                    2,
+                )
+                self.assertEqual(main([str(parents), str(parents)]), 2)
+            self.assertEqual(parents.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":
