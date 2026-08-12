@@ -110,6 +110,25 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit JSONL references
+
+Check a parent export and a child export before a join or load:
+
+```powershell
+python -m useful_automation_lab.jsonl_references `
+  examples/reference-parents.jsonl `
+  examples/reference-children.jsonl `
+  --max-orphan-references 1 `
+  --max-unreferenced-parents 1 `
+  --max-children-per-parent 2
+```
+
+The parent stream requires one unique scalar `id` per object, and the child stream requires a scalar `parent_id` by default. Field-name flags support other top-level schemas. The report counts child references with no matching parent, parents with no children, and the largest observed children-per-parent fanout. Bounded details retain join IDs and counts only; other scalar fields are not copied. String and numeric IDs are type-sensitive, so the string `"1"` and number `1` remain distinct.
+
+Exit code `0` means every configured orphan, unreferenced-parent, and fanout maximum passed; `1` reports all structured threshold failures; and `2` identifies malformed or oversized strict JSONL, duplicate parent IDs, unsupported ID shapes, the same file used for both inputs, unsafe output aliasing, or invalid configuration. Both inputs use the existing strict duplicate-key/non-standard-number reader with a default 10 MiB bound. Source files are never changed.
+
+This audit checks top-level equality for two supplied snapshots. It does not validate nested foreign keys, temporal validity, relationship meaning, authorization, deletion policy, transaction isolation, or whether an unreferenced parent is intentionally allowed. IDs themselves can be sensitive, so review reports before sharing and use non-identifying keys in committed examples.
+
 ## Compare JSONL structure
 
 Detect top-level field drift between two strict JSONL exports without copying scalar values into the report:
