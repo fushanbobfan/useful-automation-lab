@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
+
+from .jsonl_structure import load_jsonl_records
 
 
 def _validate_field(name: str, value: str) -> str:
@@ -63,7 +68,11 @@ def audit_jsonl_references(
     maximum_children = _validate_optional_count(
         "max_children_per_parent", max_children_per_parent
     )
-    if isinstance(max_details, bool) or not isinstance(max_details, int) or max_details < 0:
+    if (
+        isinstance(max_details, bool)
+        or not isinstance(max_details, int)
+        or max_details < 0
+    ):
         raise ValueError("max_details must be a non-negative integer")
 
     parents: dict[str, Any] = {}
@@ -189,3 +198,63 @@ def audit_jsonl_references(
             "max_details": max_details,
         },
     }
+
+
+def _paths_alias(first: Path, second: Path) -> bool:
+    if first.resolve() == second.resolve():
+        return True
+    try:
+        return first.samefile(second)
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("parents", type=Path)
+    parser.add_argument("children", type=Path)
+    parser.add_argument("--parent-id-field", default="id")
+    parser.add_argument("--child-reference-field", default="parent_id")
+    parser.add_argument("--max-orphan-references", type=int, default=0)
+    parser.add_argument("--max-unreferenced-parents", type=int)
+    parser.add_argument("--max-children-per-parent", type=int)
+    parser.add_argument("--max-details", type=int, default=50)
+    parser.add_argument("--max-file-bytes", type=int, default=10 * 1024 * 1024)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        if _paths_alias(args.parents, args.children):
+            raise ValueError("parent and child inputs must be different files")
+        if args.output is not None and (
+            _paths_alias(args.parents, args.output)
+            or _paths_alias(args.children, args.output)
+        ):
+            raise ValueError("output must not alias an input file")
+        report = audit_jsonl_references(
+            load_jsonl_records(
+                args.parents, max_file_bytes=args.max_file_bytes
+            ),
+            load_jsonl_records(
+                args.children, max_file_bytes=args.max_file_bytes
+            ),
+            parent_id_field=args.parent_id_field,
+            child_reference_field=args.child_reference_field,
+            max_orphan_references=args.max_orphan_references,
+            max_unreferenced_parents=args.max_unreferenced_parents,
+            max_children_per_parent=args.max_children_per_parent,
+            max_details=args.max_details,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output is None:
+            print(rendered, end="")
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

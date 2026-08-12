@@ -1,8 +1,12 @@
 import json
+import contextlib
+import io
+import tempfile
 import unittest
+from pathlib import Path
 
 import useful_automation_lab
-from useful_automation_lab.jsonl_references import audit_jsonl_references
+from useful_automation_lab.jsonl_references import audit_jsonl_references, main
 
 
 class JsonlReferenceTests(unittest.TestCase):
@@ -134,6 +138,47 @@ class JsonlReferenceTests(unittest.TestCase):
             audit_jsonl_references([{"id": ["nested"]}], self.children)
         with self.assertRaisesRegex(ValueError, "missing parent_id"):
             audit_jsonl_references(self.parents, [{"id": "child"}])
+
+    def test_cli_writes_report_and_uses_zero_one_two_exit_codes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parents = root / "parents.jsonl"
+            children = root / "children.jsonl"
+            output = root / "report.json"
+            parents.write_text(
+                "".join(json.dumps(item) + "\n" for item in self.parents),
+                encoding="utf-8",
+            )
+            children.write_text(
+                "".join(json.dumps(item) + "\n" for item in self.children),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                main(
+                    [
+                        str(parents),
+                        str(children),
+                        "--max-orphan-references",
+                        "2",
+                        "--output",
+                        str(output),
+                    ]
+                ),
+                0,
+            )
+            self.assertTrue(json.loads(output.read_text(encoding="utf-8"))["passed"])
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(parents), str(children)]), 1)
+            original = parents.read_text(encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(
+                    main([str(parents), str(children), "--output", str(parents)]),
+                    2,
+                )
+                self.assertEqual(main([str(parents), str(parents)]), 2)
+            self.assertEqual(parents.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":

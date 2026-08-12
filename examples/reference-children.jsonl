@@ -1,0 +1,4 @@
+{"order_id":"order-1","customer_id":"customer-1","amount":25.0}
+{"order_id":"order-2","customer_id":"customer-1","amount":40.0}
+{"order_id":"order-3","customer_id":"customer-2","amount":15.0}
+{"order_id":"order-4","customer_id":"customer-missing","amount":30.0}
