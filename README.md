@@ -127,6 +127,24 @@ Each profile reports record count plus, for every top-level field, presence and 
 
 Exit code `0` means the atomic change count is within budget, `1` reports valid structural drift above budget, and `2` identifies malformed or oversized inputs, unsafe output aliasing, or invalid configuration. Reports contain field names and aggregate structure but no scalar values; field names and type/presence patterns can still be sensitive. This is a top-level observed-sample profile, not JSON Schema validation, nested-shape comparison, semantic compatibility analysis, or proof that a downstream consumer will accept the candidate data.
 
+## Compare keyed JSONL records
+
+Schema checks can pass while individual records are added, removed, or changed. Compare two strict JSONL snapshots by a stable top-level key:
+
+```powershell
+python -m useful_automation_lab.jsonl_record_diff `
+  examples/record-diff-reference.jsonl `
+  examples/record-diff-candidate.jsonl `
+  --ignore-field updated_at `
+  --max-added 1 --max-removed 1 --max-modified 1
+```
+
+The key defaults to `id` and accepts non-empty strings or integers without conflating values such as `1` and `"1"`. Keys must be unique within each snapshot. Records are compared as canonical JSON after repeatable `--ignore-field` exclusions, so object-key order is irrelevant while array order remains significant. The report counts additions, removals, modifications, and unchanged records. Bounded details contain IDs and changed top-level field names only; payload values are not copied. The default change budgets are all zero for strict CI use.
+
+Exit code `0` means each configured budget passed, `1` reports valid snapshot changes above budget, and `2` identifies malformed or oversized JSONL, duplicate keys, unsafe output aliasing, or invalid configuration. IDs and field names can still be sensitive, so use non-identifying keys or set `--max-details 0` before sharing a report. Ignored fields are excluded completely and can hide meaningful changes if chosen carelessly.
+
+This is a read-only equality comparison over two finite snapshots. It does not match renamed keys, interpret timestamps, compare nested fields semantically, repair data, validate application behavior, or prove that a change is safe. Run the structure audit separately when field presence and type drift also matter.
+
 ## Audit JSONL references
 
 Check the join between parent and child JSONL exports before loading them into a pipeline:
