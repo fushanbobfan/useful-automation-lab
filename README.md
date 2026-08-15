@@ -110,6 +110,23 @@ Every non-blank line must be a strict JSON object. The audit rejects malformed J
 
 The scanner continues through the file so summary totals reflect the full input, while `--max-errors` bounds only the detailed error list. Exit code `0` means the audit passed, `1` means validly configured checks found data issues, and `2` means the input, output, or configuration could not be processed. The command is read-only unless `--output` is supplied.
 
+## Audit JSONL event order
+
+Check whether an append-only event export remains ordered globally or independently within interleaved streams:
+
+```powershell
+python -m useful_automation_lab.jsonl_event_order `
+  examples/ordered-events.jsonl `
+  --group-field stream `
+  --sequence-field sequence
+```
+
+Every strict JSONL object needs a unique string or integer `event_id` and an RFC3339 `timestamp` with `Z` or an explicit offset. Timestamps must be nondecreasing after UTC normalization. Without `--group-field`, the complete file is one ordering scope; with it, each non-empty string or integer group is checked independently, so valid interleaving does not create false regressions. An optional non-negative integer sequence must increase by exactly one within the same scope. The report separates sequence regressions, duplicates, gap transitions, and the total number of missing sequence values.
+
+Default budgets allow no duplicate event IDs, timestamp regressions, or sequence violations. Exit code `0` means configured budgets passed, `1` reports structured violations, and `2` identifies malformed or oversized JSONL, missing or invalid fields, timestamps without offsets, unsafe output aliasing, or invalid configuration. Details are bounded and include only line numbers, codes, and gap sizes; event IDs, group keys, timestamps, sequences, and payload values are not copied into the report. The source file is never rewritten.
+
+This audit checks record order in one finite export. It does not prove exactly-once delivery, causal order, complete capture, clock correctness, producer identity, or downstream transaction semantics. Gaps can be intentional after filtering or sharding, repeated IDs can reflect an explicit versioning model, and event time can legitimately differ from ingestion order. Choose fields and budgets from the pipeline contract rather than treating every finding as corruption.
+
 ## Compare JSONL structure
 
 Detect top-level field drift between two strict JSONL exports without copying scalar values into the report:

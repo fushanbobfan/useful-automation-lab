@@ -10,6 +10,7 @@ __all__ = [
     "audit_csv",
     "audit_env_contract",
     "audit_jsonl",
+    "audit_jsonl_event_order",
     "audit_jsonl_references",
     "audit_path_portability",
     "audit_sqlite",
@@ -98,6 +99,10 @@ def __getattr__(name: str) -> Any:
         from .jsonl_audit import audit_jsonl
 
         return audit_jsonl
+    if name == "audit_jsonl_event_order":
+        from .jsonl_event_order import audit_jsonl_event_order
+
+        return audit_jsonl_event_order
     if name == "audit_jsonl_references":
         from .jsonl_references import audit_jsonl_references
 
