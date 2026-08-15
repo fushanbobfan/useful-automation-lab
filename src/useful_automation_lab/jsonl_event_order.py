@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import sys
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+from .jsonl_structure import load_jsonl_records
 
 
 def _validate_field(name: str, value: str | None, *, optional: bool = False) -> str | None:
@@ -253,3 +259,59 @@ def audit_jsonl_event_order(
             "max_details": maximum_details,
         },
     }
+
+
+def _paths_alias(source: Path, output: Path) -> bool:
+    if source.resolve() == output.resolve():
+        return True
+    try:
+        return source.samefile(output)
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("dataset", type=Path)
+    parser.add_argument("--id-field", default="event_id")
+    parser.add_argument("--timestamp-field", default="timestamp")
+    parser.add_argument("--group-field")
+    parser.add_argument("--sequence-field")
+    parser.add_argument("--max-duplicate-event-ids", type=int, default=0)
+    parser.add_argument("--max-timestamp-regressions", type=int, default=0)
+    parser.add_argument("--max-sequence-violations", type=int, default=0)
+    parser.add_argument("--max-details", type=int, default=50)
+    parser.add_argument("--max-file-bytes", type=int, default=10 * 1024 * 1024)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        if args.output is not None and _paths_alias(args.dataset, args.output):
+            raise ValueError("output must not alias the source dataset")
+        report = audit_jsonl_event_order(
+            load_jsonl_records(
+                args.dataset,
+                max_file_bytes=args.max_file_bytes,
+            ),
+            id_field=args.id_field,
+            timestamp_field=args.timestamp_field,
+            group_field=args.group_field,
+            sequence_field=args.sequence_field,
+            max_duplicate_event_ids=args.max_duplicate_event_ids,
+            max_timestamp_regressions=args.max_timestamp_regressions,
+            max_sequence_violations=args.max_sequence_violations,
+            max_details=args.max_details,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output is None:
+            print(rendered, end="")
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

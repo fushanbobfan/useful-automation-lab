@@ -1,0 +1,6 @@
+{"event_id":"a-001","stream":"alpha","timestamp":"2026-01-01T00:00:00Z","sequence":1}
+{"event_id":"b-101","stream":"beta","timestamp":"2026-01-01T00:00:30Z","sequence":101}
+{"event_id":"a-002","stream":"alpha","timestamp":"2026-01-01T00:01:00Z","sequence":2}
+{"event_id":"b-102","stream":"beta","timestamp":"2026-01-01T00:01:30Z","sequence":102}
+{"event_id":"a-003","stream":"alpha","timestamp":"2026-01-01T00:02:00Z","sequence":3}
+{"event_id":"b-103","stream":"beta","timestamp":"2026-01-01T00:02:30Z","sequence":103}

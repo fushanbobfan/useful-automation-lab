@@ -1,6 +1,12 @@
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from useful_automation_lab.jsonl_event_order import audit_jsonl_event_order
+import useful_automation_lab
+from useful_automation_lab.jsonl_event_order import audit_jsonl_event_order, main
 
 
 class JsonlEventOrderTests(unittest.TestCase):
@@ -24,6 +30,7 @@ class JsonlEventOrderTests(unittest.TestCase):
             max_sequence_violations=3,
         )
 
+        self.assertIs(useful_automation_lab.audit_jsonl_event_order, audit_jsonl_event_order)
         self.assertTrue(report["passed"])
         self.assertEqual(
             report["summary"],
@@ -113,6 +120,64 @@ class JsonlEventOrderTests(unittest.TestCase):
                     [{"event_id": "e1", "timestamp": "2026-01-01T00:00:00Z"}],
                     **{name: -1},
                 )
+
+    def test_cli_writes_a_passing_grouped_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = root / "events.jsonl"
+            output = root / "report.json"
+            dataset.write_text(
+                "".join(
+                    json.dumps(record) + "\n"
+                    for record in [
+                        {"id": "a-1", "group": "a", "time": "2026-01-01T00:00:00Z", "seq": 1},
+                        {"id": "b-1", "group": "b", "time": "2026-01-01T00:00:30Z", "seq": 8},
+                        {"id": "a-2", "group": "a", "time": "2026-01-01T00:01:00Z", "seq": 2},
+                        {"id": "b-2", "group": "b", "time": "2026-01-01T00:01:30Z", "seq": 9},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [
+                    str(dataset),
+                    "--id-field",
+                    "id",
+                    "--timestamp-field",
+                    "time",
+                    "--group-field",
+                    "group",
+                    "--sequence-field",
+                    "seq",
+                    "--output",
+                    str(output),
+                ]
+            )
+
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["summary"]["group_count"], 2)
+
+    def test_cli_returns_one_for_violations_and_two_for_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dataset = Path(directory) / "events.jsonl"
+            dataset.write_text(
+                '{"event_id":"e1","timestamp":"2026-01-01T00:01:00Z"}\n'
+                '{"event_id":"e2","timestamp":"2026-01-01T00:00:00Z"}\n',
+                encoding="utf-8",
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(dataset)]), 1)
+
+            original = dataset.read_text(encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(
+                    main([str(dataset), "--output", str(dataset)]),
+                    2,
+                )
+            self.assertEqual(dataset.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":
