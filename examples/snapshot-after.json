@@ -5,6 +5,11 @@
     "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
   },
   {
+    "path": "archive/summary.csv",
+    "size": 120,
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  {
     "path": "photos/trip.jpg",
     "size": 2048,
     "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
