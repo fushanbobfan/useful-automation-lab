@@ -170,6 +170,15 @@ def compare_inventories(before: Any, after: Any) -> dict[str, Any]:
     }
 
 
+def _paths_alias(source: Path, output: Path) -> bool:
+    if source.resolve() == output.resolve():
+        return True
+    try:
+        return source.samefile(output)
+    except (FileNotFoundError, OSError):
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("before", type=Path, help="earlier inventory JSON file")
@@ -178,6 +187,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.output is not None and any(
+            _paths_alias(source, args.output) for source in (args.before, args.after)
+        ):
+            raise InvalidInventoryError(
+                "output must not alias either source inventory"
+            )
         report = compare_inventories(
             load_inventory(args.before), load_inventory(args.after)
         )

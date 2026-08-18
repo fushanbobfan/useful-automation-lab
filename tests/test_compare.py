@@ -157,6 +157,26 @@ class CompareTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(json.loads(stdout.getvalue())["summary"]["added"], 1)
 
+    def test_cli_refuses_to_overwrite_either_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = root / "before.json"
+            after = root / "after.json"
+            before.write_text(json.dumps([entry("old.txt", "a")]), encoding="utf-8")
+            after.write_text(json.dumps([entry("new.txt", "b")]), encoding="utf-8")
+            before_original = before.read_text(encoding="utf-8")
+            after_original = after.read_text(encoding="utf-8")
+
+            for output in (before, after):
+                with self.subTest(output=output.name):
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        exit_code = main(
+                            [str(before), str(after), "--output", str(output)]
+                        )
+                    self.assertEqual(exit_code, 2)
+                    self.assertEqual(before.read_text(encoding="utf-8"), before_original)
+                    self.assertEqual(after.read_text(encoding="utf-8"), after_original)
+
     def test_cli_returns_two_for_invalid_json(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
