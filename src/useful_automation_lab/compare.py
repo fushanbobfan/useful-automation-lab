@@ -102,6 +102,57 @@ def compare_inventories(before: Any, after: Any) -> dict[str, Any]:
             }
         )
 
+    removed_by_content: dict[tuple[int, str], list[str]] = {}
+    added_by_content: dict[tuple[int, str], list[str]] = {}
+    preserved_by_content: dict[tuple[int, str], list[str]] = {}
+    for item in removed:
+        key = (int(item["size"]), str(item["sha256"]))
+        removed_by_content.setdefault(key, []).append(str(item["path"]))
+    for item in added:
+        key = (int(item["size"]), str(item["sha256"]))
+        added_by_content.setdefault(key, []).append(str(item["path"]))
+    for path in sorted(before_paths & after_paths):
+        old = before_by_path[path]
+        new = after_by_path[path]
+        if old["size"] == new["size"] and old["sha256"] == new["sha256"]:
+            key = (int(old["size"]), str(old["sha256"]))
+            preserved_by_content.setdefault(key, []).append(path)
+
+    removed_to_added = []
+    for size, sha256 in sorted(
+        set(removed_by_content) & set(added_by_content),
+        key=lambda item: (item[1], item[0]),
+    ):
+        removed_paths = removed_by_content[(size, sha256)]
+        added_paths = added_by_content[(size, sha256)]
+        removed_to_added.append(
+            {
+                "match_kind": (
+                    "one_to_one"
+                    if len(removed_paths) == 1 and len(added_paths) == 1
+                    else "ambiguous"
+                ),
+                "size": size,
+                "sha256": sha256,
+                "removed_paths": removed_paths,
+                "added_paths": added_paths,
+            }
+        )
+
+    preserved_to_added = []
+    for item in added:
+        key = (int(item["size"]), str(item["sha256"]))
+        preserved_paths = preserved_by_content.get(key, [])
+        if preserved_paths:
+            preserved_to_added.append(
+                {
+                    "added_path": item["path"],
+                    "size": item["size"],
+                    "sha256": item["sha256"],
+                    "preserved_paths": preserved_paths,
+                }
+            )
+
     return {
         "summary": {
             "added": len(added),
@@ -112,6 +163,10 @@ def compare_inventories(before: Any, after: Any) -> dict[str, Any]:
         "added": added,
         "removed": removed,
         "modified": modified,
+        "content_matches": {
+            "removed_to_added": removed_to_added,
+            "preserved_to_added": preserved_to_added,
+        },
     }
 
 

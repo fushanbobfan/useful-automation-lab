@@ -48,6 +48,68 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(report["modified"][0]["before"]["size"], 2)
         self.assertEqual(report["modified"][0]["after"]["size"], 3)
 
+    def test_reports_removed_added_and_preserved_added_content_matches(self):
+        before = [
+            entry("original.txt", "a", size=10),
+            entry("kept.txt", "b", size=20),
+        ]
+        after = [
+            entry("moved.txt", "a", size=10),
+            entry("kept.txt", "b", size=20),
+            entry("copy.txt", "b", size=20),
+        ]
+
+        report = compare_inventories(before, after)
+
+        self.assertEqual(
+            report["content_matches"]["removed_to_added"],
+            [
+                {
+                    "match_kind": "one_to_one",
+                    "size": 10,
+                    "sha256": "a" * 64,
+                    "removed_paths": ["original.txt"],
+                    "added_paths": ["moved.txt"],
+                }
+            ],
+        )
+        self.assertEqual(
+            report["content_matches"]["preserved_to_added"],
+            [
+                {
+                    "added_path": "copy.txt",
+                    "size": 20,
+                    "sha256": "b" * 64,
+                    "preserved_paths": ["kept.txt"],
+                }
+            ],
+        )
+
+    def test_many_to_many_content_matches_remain_ambiguous(self):
+        before = [
+            entry("z.txt", "c", size=30),
+            entry("b.txt", "c", size=30),
+        ]
+        after = [
+            entry("y.txt", "c", size=30),
+            entry("a.txt", "c", size=30),
+        ]
+
+        report = compare_inventories(before, after)
+
+        self.assertEqual(
+            report["content_matches"]["removed_to_added"],
+            [
+                {
+                    "match_kind": "ambiguous",
+                    "size": 30,
+                    "sha256": "c" * 64,
+                    "removed_paths": ["b.txt", "z.txt"],
+                    "added_paths": ["a.txt", "y.txt"],
+                }
+            ],
+        )
+
     def test_duplicate_paths_are_rejected(self):
         duplicate = [entry("same.txt", "a"), entry("same.txt", "b")]
 
