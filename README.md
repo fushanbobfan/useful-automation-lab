@@ -16,7 +16,11 @@ python -m useful_automation_lab.inventory . --output inventory.json
 python -m useful_automation_lab.compare examples/snapshot-before.json examples/snapshot-after.json
 ```
 
-The comparison output is deterministic JSON. Exit code `0` means the snapshots match, `1` means changes were found, and `2` means an inventory was invalid or unreadable. Paths must be normalized and relative, hashes must be lowercase SHA-256 values, and duplicate paths are rejected rather than silently overwritten.
+The comparison output is deterministic JSON. Exit code `0` means the snapshots match, `1` means changes were found, and `2` means an inventory was invalid, unreadable, or would be overwritten by the output. Paths must be normalized and relative, hashes must be lowercase SHA-256 values, and duplicate paths are rejected rather than silently overwritten.
+
+Added, removed, and modified paths remain the authoritative change categories. The `content_matches` section adds two conservative clues without rewriting those categories: `removed_to_added` groups removed and added paths with the same size and SHA-256, while `preserved_to_added` identifies new paths whose content also remains at an unchanged earlier path. A removed/added group is `one_to_one` only when each side has exactly one path; all many-to-one, one-to-many, and many-to-many groups remain `ambiguous` instead of inventing a pairing. The bundled snapshots demonstrate a one-to-one content match for `summary.csv`.
+
+Equal size and SHA-256 establish byte equality for the recorded snapshots, not user intent. A content match can result from a rename, copy, restore, generated template, or deduplication workflow, and the audit does not prove which operation occurred, compare metadata, inspect current files, or establish semantic equivalence. Run `manifest-verify` first when the live directory may have changed.
 
 ## Verify a directory
 
