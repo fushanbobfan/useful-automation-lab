@@ -13,6 +13,7 @@ __all__ = [
     "audit_jsonl_event_order",
     "audit_jsonl_references",
     "audit_path_portability",
+    "audit_sha256_checksums",
     "audit_sqlite",
     "audit_tar",
     "audit_text_file",
@@ -111,6 +112,10 @@ def __getattr__(name: str) -> Any:
         from .portability import audit_path_portability
 
         return audit_path_portability
+    if name == "audit_sha256_checksums":
+        from .checksum_audit import audit_sha256_checksums
+
+        return audit_sha256_checksums
     if name == "audit_sqlite":
         from .sqlite_audit import audit_sqlite
 
