@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import useful_automation_lab
 from useful_automation_lab.checksum_audit import audit_sha256_checksums, main
 
 
@@ -18,6 +19,12 @@ class ChecksumAuditTests(unittest.TestCase):
         path.write_text(
             "".join(f"{digest}  {name}\n" for digest, name in entries),
             encoding="utf-8",
+        )
+
+    def test_checksum_audit_api_is_available_from_package(self):
+        self.assertIs(
+            useful_automation_lab.audit_sha256_checksums,
+            audit_sha256_checksums,
         )
 
     def test_reports_matches_mismatches_and_missing_files(self):
