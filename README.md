@@ -32,6 +32,20 @@ python -m useful_automation_lab.verify . inventory.json --output verification.js
 
 The verification command uses the same deterministic change report and `0`/`1`/`2` exit codes as snapshot comparison. If the manifest was written inside the verified directory but was not part of the original snapshot, it is excluded automatically instead of appearing as a false addition. The command only reads directory contents unless `--output` is provided.
 
+## Audit SHA-256 checksum files
+
+Verify artifacts against the portable subset of GNU-style SHA-256 checksum files:
+
+```powershell
+$demo = Join-Path $env:TEMP ("checksum-audit-demo-" + [guid]::NewGuid())
+python examples/create_checksum_demo.py $demo
+checksum-audit $demo (Join-Path $demo "checksums.sha256")
+```
+
+Every line must contain 64 hexadecimal digits, a space, a text or binary marker (` ` or `*`), and a unique normalized relative POSIX path. Blank lines, absolute paths, parent traversal, backslashes, duplicate paths, malformed hashes, symlinked path components, missing files, directories, and digest mismatches fail closed. The report includes complete issue-code totals and a bounded detail list. It caps checksum-file size, entry count, individual artifact size, aggregate hashed bytes, and issue details before expensive work.
+
+Exit code `0` means every listed regular file matched, `1` reports a validly parsed checksum set with missing, mismatched, unsafe, or over-budget artifacts, and `2` identifies malformed input, invalid limits, unreadable paths, or unsafe output aliasing. `--output` cannot overwrite the checksum file or any listed artifact, including through symbolic or hard-link aliases. The command does not fetch artifacts, authenticate their publisher, verify signatures, scan content, infer provenance, or prove that matching bytes are trustworthy; obtain checksum files through an independently trusted channel when authenticity matters.
+
 ## Exclude generated paths
 
 Both inventory creation and direct verification accept repeatable relative POSIX glob exclusions. Use the same exclusions for the baseline and every later verification:
