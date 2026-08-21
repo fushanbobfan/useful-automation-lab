@@ -8,6 +8,7 @@ __all__ = [
     "InvalidPolicyError",
     "audit_inventory_policy",
     "audit_csv",
+    "audit_csv_references",
     "audit_env_contract",
     "audit_jsonl",
     "audit_jsonl_event_order",
@@ -128,6 +129,10 @@ def __getattr__(name: str) -> Any:
         from .csv_audit import audit_csv
 
         return audit_csv
+    if name == "audit_csv_references":
+        from .csv_references import audit_csv_references
+
+        return audit_csv_references
     if name == "audit_text_file":
         from .text_audit import audit_text_file
 
