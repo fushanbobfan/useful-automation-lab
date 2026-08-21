@@ -114,6 +114,23 @@ The strict streaming reader rejects missing, empty, or duplicate header names; m
 
 The scanner continues after ordinary row problems so full row totals remain visible, while `--max-errors` bounds the detailed issue list. A fatal CSV parse error stops at the last trustworthy physical line and sets `stopped_early` instead of claiming a complete scan. Exit code `0` means the audit passed, `1` means data or header issues were found, and `2` means the input, output, or configuration could not be processed. Use `--output` to save the JSON report; the source CSV is never rewritten.
 
+## Audit CSV references
+
+Check parent-to-child references across two strict CSV exports, including composite keys:
+
+```powershell
+csv-reference-audit `
+  examples/reference-accounts.csv examples/reference-orders.csv `
+  --parent-key account_id --parent-key region `
+  --child-key owner_id --child-key owner_region
+```
+
+Repeat `--parent-key` and `--child-key` in corresponding order for a composite relationship. Parent key fields must be non-empty. Duplicate parent keys and orphan child rows fail by default; `--max-duplicate-parent-keys` and `--max-orphan-rate` can encode an explicit migration budget. `--allow-empty-child-keys` skips only child rows whose complete composite key is empty, while partially empty keys remain checked.
+
+The report includes parent-key cardinality, matched and orphan child counts, orphan rate, and bounded evidence for duplicate or orphan groups. Evidence contains CSV row numbers and a 16-character SHA-256 key fingerprint rather than raw key values. The prefix is a correlation aid within a report, not authentication or a collision-proof identifier. Input bytes and detail output are bounded, and an output path cannot alias either source file.
+
+Exit code `0` means both integrity gates passed, `1` reports valid duplicate or orphan failures, and `2` identifies malformed input, incompatible key definitions, unsafe aliases, or invalid settings. The audit compares exact decoded strings and does not normalize identifiers, infer missing parent records, validate non-key fields, repair data, or prove database-level consistency under concurrent writes.
+
 ## Audit JSON Lines data
 
 Check a JSONL export before a pipeline consumes it:
