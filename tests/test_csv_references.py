@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import useful_automation_lab
 from useful_automation_lab.csv_references import (
     audit_csv_references,
     load_csv_rows,
@@ -18,6 +19,12 @@ class CsvReferenceTests(unittest.TestCase):
             {"account_id": "a", "region": "west", "private": "parent-a"},
             {"account_id": "b", "region": "east", "private": "parent-b"},
         ]
+
+    def test_public_api_exposes_csv_reference_audit(self):
+        self.assertIs(
+            useful_automation_lab.audit_csv_references,
+            audit_csv_references,
+        )
         self.children = [
             {"owner_id": "a", "owner_region": "west", "private": "child-1"},
             {"owner_id": "a", "owner_region": "west", "private": "child-2"},
