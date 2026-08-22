@@ -114,6 +114,25 @@ The strict streaming reader rejects missing, empty, or duplicate header names; m
 
 The scanner continues after ordinary row problems so full row totals remain visible, while `--max-errors` bounds the detailed issue list. A fatal CSV parse error stops at the last trustworthy physical line and sets `stopped_early` instead of claiming a complete scan. Exit code `0` means the audit passed, `1` means data or header issues were found, and `2` means the input, output, or configuration could not be processed. Use `--output` to save the JSON report; the source CSV is never rewritten.
 
+## Compare keyed CSV records
+
+Two CSV exports can keep the same header while individual keyed records are added, removed, or changed. Compare strict snapshots with a single or composite key:
+
+```powershell
+python -m useful_automation_lab.csv_record_diff `
+  examples/csv-record-reference.csv `
+  examples/csv-record-candidate.csv `
+  --key-column tenant --key-column record_id `
+  --ignore-column updated_at `
+  --max-added 1 --max-removed 1 --max-modified 1
+```
+
+Both files must have the same ordered header with unique, non-empty, trimmed column names and at least one data row. Repeat `--key-column` in order for a composite key; key fields must be non-empty and unique within each snapshot. Repeat `--ignore-column` only for fields whose changes are intentionally excluded. The strict bounded CSV reader rejects malformed quoting and row-width mismatches.
+
+The report counts added, removed, modified, unchanged, and total changed records. Bounded details contain source row numbers, changed column names, and 16-character SHA-256 key fingerprints rather than raw key or cell values. Default change budgets are zero for CI use. Input/output aliases are rejected, and exit codes are `0` for pass, `1` for a valid budget failure, and `2` for malformed data, incompatible headers, duplicate keys, unsafe aliases, or invalid configuration.
+
+This is an exact decoded-string comparison of two finite snapshots after explicit ignored-column removal. It does not normalize identifiers, interpret types, detect renames, compare schemas beyond exact header equality, validate business semantics, or prove that a change is safe. Ignored columns can conceal meaningful changes. Fingerprint prefixes are correlation aids within a report, not authentication or collision-proof identifiers; column names, row numbers, and change patterns can still be sensitive.
+
 ## Audit CSV references
 
 Check parent-to-child references across two strict CSV exports, including composite keys:
