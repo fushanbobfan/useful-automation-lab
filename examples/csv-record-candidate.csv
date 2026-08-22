@@ -1,0 +1,4 @@
+tenant,record_id,status,updated_at
+west,a,closed,2026-02-01T12:00:00Z
+west,c,closed,2026-01-01T12:00:00Z
+north,d,open,2026-02-01T12:00:00Z
