@@ -21,6 +21,7 @@ __all__ = [
     "audit_zip",
     "build_inventory",
     "compare_inventories",
+    "compare_csv_records",
     "compare_jsonl_records",
     "compare_jsonl_structures",
     "compare_sqlite_schemas",
@@ -35,6 +36,10 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    if name == "compare_csv_records":
+        from .csv_record_diff import compare_csv_records
+
+        return compare_csv_records
     if name == "compare_jsonl_records":
         from .jsonl_record_diff import compare_jsonl_records
 

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import sys
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
+
+from .csv_references import load_csv_rows
 
 
 def _columns(name: str, values: Sequence[str]) -> tuple[str, ...]:
@@ -242,3 +247,60 @@ def compare_csv_records(
             "key_fingerprint_algorithm": "sha256-prefix-16",
         },
     }
+
+
+def _paths_alias(first: Path, second: Path) -> bool:
+    if first.resolve() == second.resolve():
+        return True
+    try:
+        return first.samefile(second)
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("reference", type=Path)
+    parser.add_argument("candidate", type=Path)
+    parser.add_argument("--key-column", action="append", dest="key_columns")
+    parser.add_argument("--ignore-column", action="append", default=[])
+    parser.add_argument("--max-added", type=int, default=0)
+    parser.add_argument("--max-removed", type=int, default=0)
+    parser.add_argument("--max-modified", type=int, default=0)
+    parser.add_argument("--max-details", type=int, default=50)
+    parser.add_argument("--max-file-bytes", type=int, default=10 * 1024 * 1024)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+
+    try:
+        if _paths_alias(args.reference, args.candidate):
+            raise ValueError("reference and candidate inputs must be different files")
+        if args.output is not None and (
+            _paths_alias(args.reference, args.output)
+            or _paths_alias(args.candidate, args.output)
+        ):
+            raise ValueError("output must not alias an input file")
+        report = compare_csv_records(
+            load_csv_rows(args.reference, max_file_bytes=args.max_file_bytes),
+            load_csv_rows(args.candidate, max_file_bytes=args.max_file_bytes),
+            key_columns=args.key_columns or ("id",),
+            ignore_columns=args.ignore_column,
+            max_added=args.max_added,
+            max_removed=args.max_removed,
+            max_modified=args.max_modified,
+            max_details=args.max_details,
+        )
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        if args.output is None:
+            print(rendered, end="")
+        else:
+            args.output.write_text(rendered, encoding="utf-8")
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    return int(not report["passed"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

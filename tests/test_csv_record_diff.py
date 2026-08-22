@@ -1,7 +1,12 @@
+import contextlib
+import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from useful_automation_lab.csv_record_diff import compare_csv_records
+import useful_automation_lab
+from useful_automation_lab.csv_record_diff import compare_csv_records, main
 
 
 class CsvRecordDiffTests(unittest.TestCase):
@@ -63,6 +68,7 @@ class CsvRecordDiffTests(unittest.TestCase):
             max_modified=1,
         )
 
+        self.assertIs(useful_automation_lab.compare_csv_records, compare_csv_records)
         self.assertTrue(report["passed"])
         self.assertEqual(
             report["summary"],
@@ -166,6 +172,89 @@ class CsvRecordDiffTests(unittest.TestCase):
             compare_csv_records([{"id": 1}], [{"id": "1"}])
         with self.assertRaisesRegex(ValueError, "non-empty"):
             compare_csv_records([{"id": ""}], [{"id": ""}])
+
+    def test_cli_writes_a_report_and_uses_strict_default_budgets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reference = root / "reference.csv"
+            candidate = root / "candidate.csv"
+            output = root / "report.json"
+            reference.write_text(
+                "tenant,id,status,updated_at\nwest,a,open,2026-01-01\n",
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                "tenant,id,status,updated_at\nwest,a,closed,2026-02-01\n",
+                encoding="utf-8",
+            )
+
+            exit_code = main(
+                [
+                    str(reference),
+                    str(candidate),
+                    "--key-column",
+                    "tenant",
+                    "--key-column",
+                    "id",
+                    "--ignore-column",
+                    "updated_at",
+                    "--output",
+                    str(output),
+                ]
+            )
+
+            self.assertEqual(exit_code, 1)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["summary"]["modified_record_count"], 1)
+
+    def test_cli_prints_a_passing_budgeted_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reference = root / "reference.csv"
+            candidate = root / "candidate.csv"
+            reference.write_text("id,status\na,open\n", encoding="utf-8")
+            candidate.write_text("id,status\na,closed\n", encoding="utf-8")
+
+            with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                exit_code = main(
+                    [str(reference), str(candidate), "--max-modified", "1"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(json.loads(stdout.getvalue())["passed"])
+
+    def test_cli_rejects_input_alias_output_alias_and_oversized_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reference = root / "reference.csv"
+            candidate = root / "candidate.csv"
+            reference.write_text("id,status\na,open\n", encoding="utf-8")
+            candidate.write_text("id,status\na,closed\n", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main([str(reference), str(reference)]), 2)
+                self.assertEqual(
+                    main(
+                        [
+                            str(reference),
+                            str(candidate),
+                            "--output",
+                            str(reference),
+                        ]
+                    ),
+                    2,
+                )
+                self.assertEqual(
+                    main(
+                        [
+                            str(reference),
+                            str(candidate),
+                            "--max-file-bytes",
+                            "2",
+                        ]
+                    ),
+                    2,
+                )
 
 
 if __name__ == "__main__":
